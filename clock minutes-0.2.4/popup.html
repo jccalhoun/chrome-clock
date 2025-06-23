@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Clock Minutes Popup</title>
+  <style>
+    body {
+      padding: 10px;
+      font-family: Arial, sans-serif;
+      width: 240px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    a {
+      color: #0066cc;
+      text-decoration: none;
+      display: block;
+      margin-top: 10px;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    
+    /* Section styles */
+    .section {
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    /* Color picker */
+    .color-picker-container {
+      margin: 10px 0;
+    }
+    
+    /* Color spectrum */
+    .color-spectrum-container {
+      position: relative;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      height: 150px;
+      cursor: crosshair;
+      touch-action: none;
+    }
+    #color-spectrum {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to right, 
+        rgb(255,0,0) 0%, 
+        rgb(255,255,0) 17%, 
+        rgb(0,255,0) 33%, 
+        rgb(0,255,255) 50%, 
+        rgb(0,0,255) 67%, 
+        rgb(255,0,255) 83%, 
+        rgb(255,0,0) 100%
+      );
+    }
+    #color-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, 
+        rgba(255,255,255,0) 0%, 
+        rgba(255,255,255,1) 100%
+      );
+    }
+    #color-overlay-vertical {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to top, 
+        rgba(0,0,0,1) 0%, 
+        rgba(0,0,0,0) 100%
+      );
+    }
+    #color-selector {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border: 2px solid white;
+      border-radius: 50%;
+      box-shadow: 0 0 2px rgba(0,0,0,0.8);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    
+    /* Color sliders */
+    .color-sliders {
+      margin: 15px 0;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .slider-label {
+      width: 15px;
+      text-align: center;
+      margin-right: 5px;
+      font-weight: bold;
+    }
+    .slider-label.r { color: #e74c3c; }
+    .slider-label.g { color: #2ecc71; }
+    .slider-label.b { color: #3498db; }
+    .color-slider {
+      flex: 1;
+      margin: 0 5px 0 0;
+    }
+    .slider-value {
+      width: 35px;
+      text-align: right;
+    }
+    
+    /* Preview and hex input */
+    .color-preview-container {
+      display: flex;
+      align-items: center;
+      margin: 10px 0;
+    }
+    .color-preview {
+      width: 30px;
+      height: 30px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      margin-right: 10px;
+    }
+    #custom-color {
+      flex: 1;
+      padding: 4px;
+    }
+    
+    /* Button container & buttons */
+    .button-container {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    
+    button {
+      padding: 7px 10px;
+      border-radius: 4px;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      flex: 1;
+    }
+    
+    #save-button {
+      background-color: #4285f4;
+      color: white;
+    }
+    
+    #save-button:hover {
+      background-color: #3367d6;
+    }
+    
+    #reset-button {
+      background-color: #f1f1f1;
+      color: #333;
+      border: 1px solid #ccc;
+    }
+    
+    #reset-button:hover {
+      background-color: #e4e4e4;
+    }
+    
+    .status {
+      color: green;
+      font-size: 0.9em;
+      height: 20px;
+      margin-top: 5px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <!-- Color Picker Section -->
+  <div class="section">
+    <h3 style="margin-top: 0; margin-bottom: 10px;">Clock Color</h3>
+    <!-- Color spectrum -->
+    <div class="color-spectrum-container">
+      <div id="color-spectrum"></div>
+      <div id="color-overlay"></div>
+      <div id="color-overlay-vertical"></div>
+      <div id="color-selector"></div>
+    </div>
+    
+    <!-- RGB sliders -->
+    <div class="color-sliders">
+      <div class="slider-row">
+        <div class="slider-label r">R</div>
+        <input type="range" min="0" max="255" value="255" class="color-slider" id="red-slider">
+        <input type="number" min="0" max="255" value="255" class="slider-value" id="red-value">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label g">G</div>
+        <input type="range" min="0" max="255" value="255" class="color-slider" id="green-slider">
+        <input type="number" min="0" max="255" value="255" class="slider-value" id="green-value">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label b">B</div>
+        <input type="range" min="0" max="255" value="255" class="color-slider" id="blue-slider">
+        <input type="number" min="0" max="255" value="255" class="slider-value" id="blue-value">
+      </div>
+    </div>
+    
+    <!-- Hex color and preview -->
+    <div class="color-preview-container">
+      <div class="color-preview" id="color-preview"></div>
+      <input type="text" id="custom-color" placeholder="#RRGGBB">
+    </div>
+  
+    <div class="button-container">
+      <button id="save-button">Use Custom Color</button>
+      <button id="reset-button">Reset to Default</button>
+	  <!-- Add this after your existing buttons -->
+      <button id="test-sync" style="margin-top: 10px; background-color: #f39c12; color: white;">
+        Test Sync
+      </button>
+    </div>
+  </div>
+  
+  <div class="status" id="status"></div>
+  
+  <a href="options.html" target="_blank">Open Options Page</a>
+  <script src="shared-settings.js"></script>
+  <script src="color-picker-logic.js"></script>
+</body>
+</html>
