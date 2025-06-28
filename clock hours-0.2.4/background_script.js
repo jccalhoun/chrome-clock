@@ -9,18 +9,19 @@ let creating; // To prevent race conditions for the offscreen document
 // --- 1. HELPER FUNCTIONS ---
 
 async function setupOffscreenDocument() {
-  if (await chrome.offscreen.hasDocument()) return;
-  if (creating) {
-    await creating;
-  } else {
-    creating = chrome.offscreen.createDocument({
-      url: 'offscreen.html',
-      reasons: ['DOM_PARSER'], // Corrected reason
-      justification: 'To parse the DOM and draw the clock icon on a canvas.', // Updated justification
-    });
-    await creating;
-    creating = null;
-  }
+    if (await chrome.offscreen.hasDocument())
+        return;
+    if (creating) {
+        await creating;
+    } else {
+        creating = chrome.offscreen.createDocument({
+            url: 'offscreen.html',
+            reasons: ['DOM_PARSER'], // Corrected reason
+            justification: 'To parse the DOM and draw the clock icon on a canvas.', // Updated justification
+        });
+        await creating;
+        creating = null;
+    }
 }
 
 // --- 2. CORE LOGIC ---
@@ -50,8 +51,12 @@ async function updateClock() {
             }
         });
 
-        const timeString = date.toLocaleTimeString([], { hour12: !use24HourFormat });
-        await chrome.action.setTitle({ title: timeString });
+        const timeString = date.toLocaleTimeString([], {
+            hour12: !use24HourFormat
+        });
+        await chrome.action.setTitle({
+            title: timeString
+        });
         scheduleNextMinuteAlarm();
     } catch (error) {
         console.error("Error updating clock:", error);
@@ -63,7 +68,9 @@ function scheduleNextMinuteAlarm(overrideSeconds) {
     const now = new Date();
     let secondsToNextMinute = overrideSeconds || (60 - now.getSeconds());
     const minutesUntilNextUpdate = secondsToNextMinute / 60;
-    chrome.alarms.create(ALARM_NAME, { delayInMinutes: minutesUntilNextUpdate });
+    chrome.alarms.create(ALARM_NAME, {
+        delayInMinutes: minutesUntilNextUpdate
+    });
 }
 
 async function initializeExtension() {
@@ -85,10 +92,32 @@ async function initializeExtension() {
 
 // --- 3. EVENT LISTENERS ---
 
-chrome.runtime.onMessage.addListener(async (message) => {
+chrome.runtime.onMessage.addListener(async(message) => {
     if (message.type === 'icon-drawn') {
-        await chrome.action.setIcon({ imageData: message.imageData });
-        await chrome.offscreen.close();
+        try {
+            await chrome.action.setIcon({
+                imageData: message.imageData
+            });
+        } catch (error) {
+            console.error("Failed to set icon:", error);
+            // Fallback to default icon
+            await chrome.action.setIcon({
+                path: "icon32.png"
+            });
+        }
+
+        try {
+            await chrome.offscreen.closeDocument();
+        } catch (error) {
+            console.log("Offscreen document already closed");
+        }
+        return;
+    } else if (message.type === 'icon-error') {
+        console.error("Icon rendering failed:", message.error);
+        // Use default icon as fallback
+        await chrome.action.setIcon({
+            path: "icon32.png"
+        });
         return;
     }
     if (message.colorChanged || message.formatChanged) {
@@ -112,13 +141,17 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onStartup.addListener(() => {
     console.log(`onStartup event fired.`);
     initializeExtension();
-    chrome.alarms.create("clock-health-check", { periodInMinutes: 2 });
+    chrome.alarms.create("clock-health-check", {
+        periodInMinutes: 2
+    });
 });
 
 chrome.runtime.onInstalled.addListener(details => {
     console.log(`onInstalled event fired. Reason: ${details.reason}`);
     initializeExtension();
-    chrome.alarms.create("clock-health-check", { periodInMinutes: 2 });
+    chrome.alarms.create("clock-health-check", {
+        periodInMinutes: 2
+    });
 });
 
 console.log("Background script loaded and listeners attached.");
