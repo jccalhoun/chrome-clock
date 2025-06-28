@@ -9,22 +9,25 @@ function handleMessage(message) {
   }
 }
 
-// All your canvas drawing logic from background_script.js goes here
 function drawIcon(text, color, use24HourFormat) {
-  const canvas = new OffscreenCanvas(32, 32); // Use OffscreenCanvas for efficiency
+  const canvas = new OffscreenCanvas(32, 32);
   const context = canvas.getContext("2d");
 
   // Clear the canvas
   context.clearRect(0, 0, canvas.width, canvas.height);
+
+  // --- FIX: Define the text to be drawn FIRST ---
+  const drawText = use24HourFormat ? text + ":" : text + ":";
 
   // --- Dynamic Font Size Calculation ---
   let bestFontSize = canvas.height;
   context.textAlign = "center";
   context.textBaseline = "middle";
 
+  // Now, measure the text that will actually be drawn
   for (let currentSize = canvas.height; currentSize >= 1; currentSize--) {
     context.font = `bold ${currentSize}px Arial`;
-    let metrics = context.measureText(text);
+    let metrics = context.measureText(drawText); // Use drawText here
     if (metrics.width <= canvas.width - 1 && currentSize <= canvas.height - 1) {
       bestFontSize = currentSize;
       break;
@@ -34,8 +37,7 @@ function drawIcon(text, color, use24HourFormat) {
   // --- Draw the text ---
   context.fillStyle = color;
   context.font = `bold ${bestFontSize}px Arial`;
-  const drawText = use24HourFormat ? text + ":" : text + ":"; // Append colon for hours
-  context.fillText(drawText, canvas.width / 2, canvas.height / 2);
+  context.fillText(drawText, canvas.width / 2, canvas.height / 2); // And use it here
 
   // Get the image data and send it back to the service worker
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);

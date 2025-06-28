@@ -193,7 +193,7 @@ function loadSavedPreferences(callback) {
         defaultSettings.use24HourFormat = false;
     }
     
-    browser.storage.sync.get(defaultSettings).then(result => {
+    chrome.storage.sync.get(defaultSettings).then(result => {
         selectedColor = result.customColor;
         updateColorUI(selectedColor);
 
@@ -217,9 +217,9 @@ function saveCustomColor() {
         customColor: selectedColor
     };
 
-    browser.storage.sync.set(settings).then(() => {
+    chrome.storage.sync.set(settings).then(() => {
         // Notify the background script
-        browser.runtime.sendMessage({
+        chrome.runtime.sendMessage({
             colorChanged: true
         });
 
@@ -242,9 +242,9 @@ function resetToDefault() {
         customColor: selectedColor // Still store the last custom color
     };
 
-    browser.storage.sync.set(settings).then(() => {
+    chrome.storage.sync.set(settings).then(() => {
         // Notify the background script
-        browser.runtime.sendMessage({
+        chrome.runtime.sendMessage({
             colorChanged: true
         });
 
@@ -266,9 +266,9 @@ function saveTimeFormat(use24HourFormat) {
         use24HourFormat: use24HourFormat
     };
 
-    browser.storage.sync.set(settings).then(() => {
+    chrome.storage.sync.set(settings).then(() => {
         // Notify the background script
-        browser.runtime.sendMessage({
+        chrome.runtime.sendMessage({
             formatChanged: true
         });
 
@@ -448,7 +448,7 @@ function setupColorPickerEvents() {
 
 // Setup message listener for settings updates from companion extension
 function setupMessageListener() {
-    browser.runtime.onMessage.addListener((message) => {
+    chrome.runtime.onMessage.addListener((message) => {
         if (message.action === "settingsUpdated") {
             console.log("Received settings update notification:", message.settings);
 
@@ -457,7 +457,7 @@ function setupMessageListener() {
                 message.settings.hasOwnProperty('useCustomColor')) {
 
                 // Load from storage to ensure we have the complete settings
-                browser.storage.sync.get({
+                chrome.storage.sync.get({
                     useCustomColor: false,
                     customColor: "#ffffff"
                 }).then(result => {
@@ -472,7 +472,7 @@ function setupMessageListener() {
                 // Only apply this for the hours extension that has the time format toggle
                 const timeFormatToggle = document.getElementById("time-format-toggle");
                 if (timeFormatToggle) {
-                    browser.storage.sync.get({
+                    chrome.storage.sync.get({
                         use24HourFormat: false
                     }).then(result => {
                         timeFormatToggle.checked = result.use24HourFormat;

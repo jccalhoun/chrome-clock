@@ -15,8 +15,8 @@ async function setupOffscreenDocument() {
   } else {
     creating = chrome.offscreen.createDocument({
       url: 'offscreen.html',
-      reasons: ['CANVAS'],
-      justification: 'To draw the clock icon.',
+      reasons: ['DOM_PARSER'], // Corrected reason
+      justification: 'To parse the DOM and draw the clock icon on a canvas.', // Updated justification
     });
     await creating;
     creating = null;
@@ -51,7 +51,7 @@ async function updateClock() {
         });
 
         const timeString = date.toLocaleTimeString([], { hour12: !use24HourFormat });
-        await browser.action.setTitle({ title: timeString });
+        await chrome.action.setTitle({ title: timeString });
         scheduleNextMinuteAlarm();
     } catch (error) {
         console.error("Error updating clock:", error);
@@ -63,12 +63,12 @@ function scheduleNextMinuteAlarm(overrideSeconds) {
     const now = new Date();
     let secondsToNextMinute = overrideSeconds || (60 - now.getSeconds());
     const minutesUntilNextUpdate = secondsToNextMinute / 60;
-    browser.alarms.create(ALARM_NAME, { delayInMinutes: minutesUntilNextUpdate });
+    chrome.alarms.create(ALARM_NAME, { delayInMinutes: minutesUntilNextUpdate });
 }
 
 async function initializeExtension() {
     try {
-        const storageResult = await browser.storage.sync.get({
+        const storageResult = await chrome.storage.sync.get({
             useCustomColor: false,
             customColor: "#ffffff",
             use24HourFormat: false
@@ -85,9 +85,9 @@ async function initializeExtension() {
 
 // --- 3. EVENT LISTENERS ---
 
-browser.runtime.onMessage.addListener(async (message) => {
+chrome.runtime.onMessage.addListener(async (message) => {
     if (message.type === 'icon-drawn') {
-        await browser.action.setIcon({ imageData: message.imageData });
+        await chrome.action.setIcon({ imageData: message.imageData });
         await chrome.offscreen.close();
         return;
     }
@@ -96,7 +96,7 @@ browser.runtime.onMessage.addListener(async (message) => {
     }
 });
 
-browser.alarms.onAlarm.addListener((alarm) => {
+chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ALARM_NAME) {
         updateClock();
     } else if (alarm.name === "clock-health-check") {
@@ -109,16 +109,16 @@ browser.alarms.onAlarm.addListener((alarm) => {
     }
 });
 
-browser.runtime.onStartup.addListener(() => {
+chrome.runtime.onStartup.addListener(() => {
     console.log(`onStartup event fired.`);
     initializeExtension();
-    browser.alarms.create("clock-health-check", { periodInMinutes: 2 });
+    chrome.alarms.create("clock-health-check", { periodInMinutes: 2 });
 });
 
-browser.runtime.onInstalled.addListener(details => {
+chrome.runtime.onInstalled.addListener(details => {
     console.log(`onInstalled event fired. Reason: ${details.reason}`);
     initializeExtension();
-    browser.alarms.create("clock-health-check", { periodInMinutes: 2 });
+    chrome.alarms.create("clock-health-check", { periodInMinutes: 2 });
 });
 
 console.log("Background script loaded and listeners attached.");
