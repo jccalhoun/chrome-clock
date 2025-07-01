@@ -1,3 +1,33 @@
+
+chrome.runtime.onMessage.addListener(async(message) => {
+    if (message.type === 'icon-drawn' && message.imageData) {
+        try {
+            // Reconstruct the ImageData object from the serialized data
+            const reconstructedImageData = new ImageData(
+                    new Uint8ClampedArray(message.imageData.data),
+                    message.imageData.width,
+                    message.imageData.height);
+
+            // Set the action icon using the reconstructed ImageData
+            await chrome.action.setIcon({
+                imageData: reconstructedImageData
+            });
+            console.log("Icon set successfully from reconstructed data.");
+
+        } catch (error) {
+            console.error("Failed to set icon:", error);
+        }
+
+        // Close the offscreen document
+        await chrome.offscreen.closeDocument();
+        return;
+    }
+
+    if (message.colorChanged || message.formatChanged) {
+        initializeExtension();
+    }
+});
+
 // Global variables
 const ALARM_NAME = "update-clock-hour";
 var useCustomColor = false;
@@ -90,41 +120,8 @@ async function initializeExtension() {
     }
 }
 
-// --- 3. EVENT LISTENERS ---
 
-chrome.runtime.onMessage.addListener(async(message) => {
-    if (message.type === 'icon-drawn') {
-        try {
-            await chrome.action.setIcon({
-                imageData: message.imageData
-            });
-        } catch (error) {
-            console.error("Failed to set icon:", error);
-            // Fallback to default icon
-            await chrome.action.setIcon({
-                path: "icon32.png"
-            });
-        }
-
-        try {
-            await chrome.offscreen.closeDocument();
-        } catch (error) {
-            console.log("Offscreen document already closed");
-        }
-        return;
-    } else if (message.type === 'icon-error') {
-        console.error("Icon rendering failed:", message.error);
-        // Use default icon as fallback
-        await chrome.action.setIcon({
-            path: "icon32.png"
-        });
-        return;
-    }
-    if (message.colorChanged || message.formatChanged) {
-        initializeExtension();
-    }
-});
-
+// Listeners for alarms and extension lifecycle events
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ALARM_NAME) {
         updateClock();
