@@ -18,16 +18,33 @@ chrome.runtime.onMessage.addListener(async(message) => {
             console.error("Failed to set icon:", error);
         }
 
-        // Close the offscreen document
-        await chrome.offscreen.closeDocument();
-        return;
-    }
+        
 
-    if (message.colorChanged || message.formatChanged) {
-        initializeExtension();
+        // --- THE FIX: Check if the document exists before closing it ---
+        if (await chrome.offscreen.hasDocument()) {
+            await chrome.offscreen.closeDocument();
+        }
     }
 });
+// --- ADD THIS ENTIRE BLOCK ---
+/**
+ * Listens for changes in synchronized storage.
+ * This is the primary way the icon will update when settings are changed.
+ */
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    // Only act on changes in the 'sync' storage area
+    if (namespace === 'sync') {
+        // Check if any of our relevant settings have changed
+        const hasColorChanged = changes.useCustomColor || changes.customColor;
+        const hasFormatChanged = changes.use24HourFormat;
 
+        if (hasColorChanged || hasFormatChanged) {
+            console.log("Storage change detected, re-initializing extension.");
+            // Re-run the initialization to load the new settings and update the clock
+            initializeExtension();
+        }
+    }
+});
 // Global variables
 const ALARM_NAME = "update-clock-hour";
 var useCustomColor = false;

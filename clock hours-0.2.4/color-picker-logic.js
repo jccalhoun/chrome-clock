@@ -218,14 +218,7 @@ function saveCustomColor() {
     };
 
     chrome.storage.sync.set(settings).then(() => {
-        // Notify the background script
-        chrome.runtime.sendMessage({
-            colorChanged: true
-        });
-
-        // Sync settings with companion extension
-        SharedSettings.syncSettings(settings);
-
+        
         // Show saved message
         const status = document.getElementById("status");
         status.textContent = "Custom color applied!";
@@ -243,14 +236,7 @@ function resetToDefault() {
     };
 
     chrome.storage.sync.set(settings).then(() => {
-        // Notify the background script
-        chrome.runtime.sendMessage({
-            colorChanged: true
-        });
-
-        // Sync settings with companion extension
-        SharedSettings.syncSettings(settings);
-
+        
         // Show reset message
         const status = document.getElementById("status");
         status.textContent = "Reset to theme default!";
@@ -267,14 +253,7 @@ function saveTimeFormat(use24HourFormat) {
     };
 
     chrome.storage.sync.set(settings).then(() => {
-        // Notify the background script
-        chrome.runtime.sendMessage({
-            formatChanged: true
-        });
-
-        // Sync settings with companion extension
-        SharedSettings.syncSettings(settings);
-
+        
         // Show saved message
         const status = document.getElementById("status");
         status.textContent = "Time format updated!";
@@ -506,8 +485,7 @@ function initColorPicker(callback) {
                 testTimestamp: Date.now()
             };
 
-            // Try direct sync without using storage
-            SharedSettings.syncSettings(testSettings);
+            
         });
     }
 }
