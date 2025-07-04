@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "new clock hours",
-  "description": "shows the hours",
+  "name": "Clock Minutes",
+  "description": "Shows the minutes with options shared with Clock Hours",
   "version": "0.2.4",
   "background": {
-    "service_worker": "background_script.js" 
+    "service_worker": "background_script.js"
   },
   "action": {
     "default_icon": {
@@ -12,7 +12,7 @@
       "32": "icon32.png"
     },
     "default_popup": "popup.html",
-    "default_title": "clock hours"
+    "default_title": "Clock Minutes"
   },
   "options_ui": {
     "page": "options.html",
@@ -21,9 +21,6 @@
   "permissions": [
     "storage",
     "alarms",
-    "offscreen" 
-  ],
-  "optional_permissions": [
-  ],
-  "host_permissions": []
+    "offscreen"
+  ]
 }
