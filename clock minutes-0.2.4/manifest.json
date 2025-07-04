@@ -1,34 +1,26 @@
 {
-  "manifest_version": 3,
-  "name": "Clock Minutes",
-  "description": "Shows the minutes with options shared with Clock Hours",
-  "version": "0.2.4",
-  "background": {
-    "page": "background.html"
-  },
-  "action": {
-    "default_icon": {
-      "16": "icon16.png",
-      "32": "icon32.png"
+    "manifest_version": 3,
+    "name": "Clock Minutes",
+    "description": "Shows the minutes with options shared with Clock Hours",
+    "version": "0.2.4",
+    "background": {
+        "service_worker": "background_script.js"
     },
-    "default_popup": "popup.html",
-    "default_title": "Clock Minutes"
-  },
-  "options_ui": {
-    "page": "options.html",
-    "open_in_tab": true
-  },
-  "permissions": [
-    "storage",
-    "theme",
-    "alarms"
-  ],
-  "optional_permissions": [
-    "*://jccalhoun@gmail.com/*"
-  ],
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "jccalhoun-minutes-extension-id@gmail.com"
-    }
-  }
+    "action": {
+        "default_icon": {
+            "16": "icon16.png",
+            "32": "icon32.png"
+        },
+        "default_popup": "popup.html",
+        "default_title": "Clock Minutes"
+    },
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": true
+    },
+    "permissions": [
+        "storage",
+        "alarms",
+        "offscreen"
+    ]
 }
