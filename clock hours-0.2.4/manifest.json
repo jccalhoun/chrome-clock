@@ -1,8 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Clock Minutes",
-  "description": "Shows the minutes with options shared with Clock Hours",
-  "version": "0.2.4",
+  "name": "new clock hours",
+  "description": "shows the hours",  "version": "0.2.4",
   "background": {
     "service_worker": "background_script.js"
   },
@@ -12,7 +11,7 @@
       "32": "icon32.png"
     },
     "default_popup": "popup.html",
-    "default_title": "Clock Minutes"
+    "default_title": "clock hours"
   },
   "options_ui": {
     "page": "options.html",
