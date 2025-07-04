@@ -193,7 +193,7 @@ function loadSavedPreferences(callback) {
 
     // If we're in the Hours extension, also check for time format
 
-    browser.storage.sync.get(defaultSettings).then(result => {
+    chrome.storage.sync.get(defaultSettings).then(result => {
         selectedColor = result.customColor;
         updateColorUI(selectedColor);
 
@@ -211,9 +211,9 @@ function saveCustomColor() {
         customColor: selectedColor
     };
 
-    browser.storage.sync.set(settings).then(() => {
+    chrome.storage.sync.set(settings).then(() => {
         // Notify the background script
-        browser.runtime.sendMessage({
+        chrome.runtime.sendMessage({
             colorChanged: true
         });
 
@@ -236,9 +236,9 @@ function resetToDefault() {
         customColor: selectedColor // Still store the last custom color
     };
 
-    browser.storage.sync.set(settings).then(() => {
+    chrome.storage.sync.set(settings).then(() => {
         // Notify the background script
-        browser.runtime.sendMessage({
+        chrome.runtime.sendMessage({
             colorChanged: true
         });
 
@@ -407,7 +407,7 @@ function setupColorPickerEvents() {
 
 // Setup message listener for settings updates from companion extension
 function setupMessageListener() {
-    browser.runtime.onMessage.addListener((message) => {
+    chrome.runtime.onMessage.addListener((message) => {
         if (message.action === "settingsUpdated") {
             console.log("Received settings update notification:", message.settings);
 
@@ -416,7 +416,7 @@ function setupMessageListener() {
                 message.settings.hasOwnProperty('useCustomColor')) {
 
                 // Load from storage to ensure we have the complete settings
-                browser.storage.sync.get({
+                chrome.storage.sync.get({
                     useCustomColor: false,
                     customColor: "#ffffff"
                 }).then(result => {

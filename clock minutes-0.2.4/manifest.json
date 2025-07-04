@@ -22,5 +22,10 @@
         "storage",
         "alarms",
         "offscreen"
+    ],
+  "externally_connectable": {
+    "ids": [
+      "iacjbmokhggempophjkmdimipfgbaank"
     ]
+  }
 }

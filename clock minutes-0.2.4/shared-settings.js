@@ -1,13 +1,13 @@
 // Shared settings service to sync settings between clock extensions
 const SharedSettings = {
   // IDs of the companion extensions
-  HOURS_EXTENSION_ID: "jccalhoun@gmail.com",
-  MINUTES_EXTENSION_ID: "jccalhoun-minutes-extension-id@gmail.com",
+  HOURS_EXTENSION_ID: "dpdjenkmikjdbegjkfgimgdjhenldhaf",
+  MINUTES_EXTENSION_ID: "iacjbmokhggempophjkmdimipfgbaank",
   
   // Initialize by adding listeners for external messages
   init: function() {
     // Listen for messages from companion extension
-    browser.runtime.onMessageExternal.addListener(this.handleExternalMessage);
+    chrome.runtime.onMessageExternal.addListener(this.handleExternalMessage);
     console.log("SharedSettings initialized - listening for external messages");
   },
   
@@ -25,7 +25,7 @@ const SharedSettings = {
         SharedSettings.applyReceivedSettings(message.settings);
 		
 		// Broadcast to all windows that settings have been updated
-      browser.runtime.sendMessage({
+      chrome.runtime.sendMessage({
         action: "settingsUpdated",
         settings: message.settings
       });
@@ -38,7 +38,7 @@ const SharedSettings = {
     console.log("Applying received settings:", settings);
     
     // Store settings locally
-    browser.storage.sync.set(settings).then(() => {
+    chrome.storage.sync.set(settings).then(() => {
       console.log("Settings synchronized successfully");
       
       // Notify the background script that settings have changed
@@ -49,7 +49,7 @@ const SharedSettings = {
         message.colorChanged = true;
       }
       
-      browser.runtime.sendMessage(message);
+      chrome.runtime.sendMessage(message);
     }).catch(error => {
       console.error("Error applying settings:", error);
     });
@@ -60,7 +60,7 @@ const SharedSettings = {
     console.log("Syncing settings to companion extension:", settings);
     
     try {
-		const currentExtensionId = browser.runtime.id;
+		const currentExtensionId = chrome.runtime.id;
 		console.log("SYNC: Current extension ID:", currentExtensionId);
     
 		const targetExtensionId = currentExtensionId === this.HOURS_EXTENSION_ID ? 
@@ -68,13 +68,13 @@ const SharedSettings = {
 		console.log("SYNC: Target extension ID:", targetExtensionId);
     
 		// Test if we can access the messaging API
-		if (!browser.runtime.sendMessage) {
-		console.error("SYNC: browser.runtime.sendMessage is not available");
+		if (!chrome.runtime.sendMessage) {
+		console.error("SYNC: chrome.runtime.sendMessage is not available");
 		return;
     }
     
     console.log("SYNC: Sending message to:", targetExtensionId);
-    browser.runtime.sendMessage(targetExtensionId, {
+    chrome.runtime.sendMessage(targetExtensionId, {
       action: "syncSettings",
       settings: settings
     }).then(response => {
