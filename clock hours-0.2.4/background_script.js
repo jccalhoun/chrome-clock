@@ -1,3 +1,5 @@
+// Import the shared settings logic
+importScripts('shared-settings.js');
 // Global Constants
 const ALARM_NAME = "update-clock-hour";
 const HEALTH_CHECK_ALARM_NAME = "clock-health-check";
