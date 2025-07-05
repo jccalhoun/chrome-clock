@@ -236,7 +236,7 @@ function resetToDefault() {
     };
 
     chrome.storage.sync.set(settings).then(() => {
-        
+        SharedSettings.syncSettings(settings);
         // Show reset message
         const status = document.getElementById("status");
         status.textContent = "Reset to theme default!";
@@ -253,7 +253,7 @@ function saveTimeFormat(use24HourFormat) {
     };
 
     chrome.storage.sync.set(settings).then(() => {
-        
+        SharedSettings.syncSettings(settings);
         // Show saved message
         const status = document.getElementById("status");
         status.textContent = "Time format updated!";
