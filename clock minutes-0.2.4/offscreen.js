@@ -18,13 +18,13 @@ async function drawIcon(text, color) {
         const drawText = text; // No need for a colon here for minutes
 
         let bestFontSize = canvas.height;
-        context.textAlign = "center";
+        context.textAlign = "left";
         context.textBaseline = "middle";
 
-        for (let currentSize = canvas.height; currentSize >= 1; currentSize--) {
+        for (let currentSize = Math.floor(canvas.height * 1.2); currentSize >= 1; currentSize--) {
             context.font = `bold ${currentSize}px Arial`;
             const metrics = context.measureText(drawText);
-            if (metrics.width <= canvas.width - 1 && currentSize <= canvas.height - 1) {
+            if (metrics.width <= canvas.width + 2 && currentSize <= canvas.height + 2) {
                 bestFontSize = currentSize;
                 break;
             }
@@ -32,7 +32,7 @@ async function drawIcon(text, color) {
 
         context.fillStyle = color;
         context.font = `bold ${bestFontSize}px Arial`;
-        context.fillText(drawText, canvas.width / 2, canvas.height / 2);
+        context.fillText(drawText, 0, canvas.height / 2);
 
         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
         const serializableImageData = {

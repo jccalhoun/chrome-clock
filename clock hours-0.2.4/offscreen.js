@@ -33,14 +33,14 @@ async function drawIcon(text, color, use24HourFormat) {
 
         // --- Dynamic Font Size Calculation ---
         let bestFontSize = canvas.height;
-        context.textAlign = "center";
+        context.textAlign = "right";
         context.textBaseline = "middle";
 
-        for (let currentSize = canvas.height; currentSize >= 1; currentSize--) {
+        for (let currentSize = Math.floor(canvas.height * 1.2); currentSize >= 1; currentSize--) {
             context.font = `bold ${currentSize}px Arial`;
             const metrics = context.measureText(drawText);
             // Ensure the text fits within the canvas with a small margin.
-            if (metrics.width <= canvas.width - 1 && currentSize <= canvas.height - 1) {
+            if (metrics.width <= canvas.width + 2 && currentSize <= canvas.height + 2) {
                 bestFontSize = currentSize;
                 break;
             }
@@ -49,7 +49,7 @@ async function drawIcon(text, color, use24HourFormat) {
         // --- Draw the text ---
         context.fillStyle = color;
         context.font = `bold ${bestFontSize}px Arial`;
-        context.fillText(drawText, canvas.width / 2, canvas.height / 2);
+        context.fillText(drawText, canvas.width, canvas.height / 2);
 
         // Get the pixel data from the canvas.
         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
