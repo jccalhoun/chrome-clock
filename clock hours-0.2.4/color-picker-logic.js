@@ -191,6 +191,7 @@ function loadSavedPreferences(callback) {
     // If we're in the Hours extension, also check for time format
     if (document.getElementById("time-format-toggle")) {
         defaultSettings.use24HourFormat = false;
+		defaultSettings.showLeadingZero = false; // Add default for leading zero
     }
     
     chrome.storage.sync.get(defaultSettings).then(result => {
@@ -201,6 +202,11 @@ function loadSavedPreferences(callback) {
         const timeFormatToggle = document.getElementById("time-format-toggle");
         if (timeFormatToggle) {
             timeFormatToggle.checked = result.use24HourFormat;
+        }
+		
+        const leadingZeroToggle = document.getElementById("leading-zero-toggle");
+        if (leadingZeroToggle) {
+            leadingZeroToggle.checked = result.showLeadingZero;
         }
         
         // Optional callback for extension-specific initialization
@@ -277,6 +283,23 @@ function saveTimeFormat(use24HourFormat) {
     });
 }
 
+// Function to save leading zero preference (only used in hours extension)
+function saveLeadingZeroPreference(showLeadingZero) {
+    const settings = {
+        showLeadingZero: showLeadingZero
+    };
+
+    chrome.storage.sync.set(settings).then(() => {
+        SharedSettings.syncSettings(settings);
+        // Show saved message
+        const status = document.getElementById("status");
+        status.textContent = "Display setting updated!";
+        setTimeout(() => {
+            status.textContent = "";
+        }, 1500);
+    });
+}
+
 // Function to validate hex color
 function isValidHexColor(color) {
     return /^#([0-9A-F]{3}){1,2}$/i.test(color);
@@ -342,6 +365,12 @@ function handleTimeFormatChange(event) {
     saveTimeFormat(use24HourFormat);
 }
 
+// Function to handle leading zero toggle changes
+function handleLeadingZeroChange(event) {
+    const showLeadingZero = event.target.checked;
+    saveLeadingZeroPreference(showLeadingZero);
+}
+
 // Handle spectrum click/drag
 function handleSpectrumInteraction(event) {
     const spectrum = document.querySelector(".color-spectrum-container");
@@ -381,6 +410,12 @@ function setupColorPickerEvents() {
     const timeFormatToggle = document.getElementById("time-format-toggle");
     if (timeFormatToggle) {
         timeFormatToggle.addEventListener("change", handleTimeFormatChange);
+    }
+
+    // Leading zero toggle event (only in hours extension)
+    const leadingZeroToggle = document.getElementById("leading-zero-toggle");
+    if (leadingZeroToggle) {
+        leadingZeroToggle.addEventListener("change", handleLeadingZeroChange);
     }
 
     // Custom color input events
@@ -469,6 +504,16 @@ function setupMessageListener() {
                         use24HourFormat: false
                     }).then(result => {
                         timeFormatToggle.checked = result.use24HourFormat;
+                    });
+                }
+            }
+			            
+            // Update leading zero setting if it has changed
+            if (message.settings.hasOwnProperty('showLeadingZero')) {
+                const leadingZeroToggle = document.getElementById("leading-zero-toggle");
+                if (leadingZeroToggle) {
+                    chrome.storage.sync.get({ showLeadingZero: false }).then(result => {
+                        leadingZeroToggle.checked = result.showLeadingZero;
                     });
                 }
             }

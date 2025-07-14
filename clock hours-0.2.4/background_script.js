@@ -16,7 +16,8 @@ async function updateClock() {
         const settings = await chrome.storage.sync.get({
             useCustomColor: false,
             customColor: "#ffffff",
-            use24HourFormat: false
+            use24HourFormat: false,
+			showLeadingZero: false // Load the new setting with a default value
         });
 
         // 2. Prepare data for drawing.
@@ -25,7 +26,13 @@ async function updateClock() {
         if (!settings.use24HourFormat) {
             hours = hours % 12 || 12; // Convert to 12-hour format
         }
-        const textToDraw = hours.toString();
+		
+        // Apply leading zero if the option is enabled
+        let textToDraw = hours.toString();
+        if (settings.showLeadingZero && hours < 10) {
+            textToDraw = '0' + hours;
+        }
+		
         const colorToUse = settings.useCustomColor ? settings.customColor : "black";
 
         // 3. Ensure the offscreen document is running.
