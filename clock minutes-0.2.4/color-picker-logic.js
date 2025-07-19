@@ -10,6 +10,17 @@ let rgbValues = {
 };
 let isDragging = false;
 
+// Add preset themes
+const presetThemes = [
+    { name: 'Default', color: '#000000' },
+    { name: 'Dark Mode', color: '#FFFFFF' },
+    { name: 'Ocean Blue', color: '#3498db' },
+    { name: 'Forest Green', color: '#2ecc71' },
+    { name: 'Sunset Orange', color: '#e67e22' },
+    { name: 'High Contrast', color: '#FFFF00' },
+];
+
+
 // Color conversion utilities
 // Convert RGB to HEX
 function rgbToHex(r, g, b) {
@@ -184,11 +195,60 @@ function hsvToRgb(h, s, v) {
     };
 }
 
+// Function to render preset theme buttons
+function renderPresetButtons() {
+    const container = document.getElementById('preset-buttons');
+    if (!container) return; // Only render if the container exists (i.e., in options.html)
+
+    container.innerHTML = ''; // Clear existing buttons
+    presetThemes.forEach(theme => {
+        const button = document.createElement('button');
+        button.textContent = theme.name;
+        button.style.backgroundColor = theme.color;
+        // Basic styling for contrast
+        const rgb = hexToRgb(theme.color);
+        const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+        button.style.color = brightness > 128 ? 'black' : 'white';
+        button.style.border = '1px solid #ccc';
+        button.style.padding = '5px 10px';
+        button.style.cursor = 'pointer';
+        button.addEventListener('click', () => {
+            updateColorUI(theme.color);
+            saveCustomColor(); // Apply the color immediately
+        });
+        container.appendChild(button);
+    });
+}
+
+// Function to render recently used colors
+function renderRecentColors(recentColors = []) {
+    const container = document.getElementById('recent-colors');
+    if (!container) return;
+
+    container.innerHTML = '';
+    recentColors.forEach(color => {
+        const swatch = document.createElement('div');
+        swatch.style.width = '24px';
+        swatch.style.height = '24px';
+        swatch.style.backgroundColor = color;
+        swatch.style.border = '1px solid #ccc';
+        swatch.style.borderRadius = '4px';
+        swatch.style.cursor = 'pointer';
+        swatch.title = `Use ${color}`;
+        swatch.addEventListener('click', () => {
+            updateColorUI(color);
+            saveCustomColor();
+        });
+        container.appendChild(swatch);
+    });
+}
+
 // Function to load saved preferences
 function loadSavedPreferences(callback) {
     const defaultSettings = {
         useCustomColor: false,
-        customColor: "#ffffff"
+        customColor: "#ffffff",
+        recentColors: [],
     };
 
     // If we're in the Hours extension, also check for time format
@@ -196,7 +256,8 @@ function loadSavedPreferences(callback) {
     chrome.storage.sync.get(defaultSettings).then(result => {
         selectedColor = result.customColor;
         updateColorUI(selectedColor);
-
+        renderRecentColors(result.recentColors);
+        
         // Optional callback for extension-specific initialization
         if (callback && typeof callback === 'function') {
             callback(result);
@@ -206,26 +267,42 @@ function loadSavedPreferences(callback) {
 
 // Function to save custom color
 function saveCustomColor() {
-    const settings = {
-        useCustomColor: true,
-        customColor: selectedColor
-    };
+    chrome.storage.sync.get({ recentColors: [] }).then(data => {
+        let recentColors = data.recentColors || [];
+        // Add the new color to the start of the array
+        if (selectedColor && !recentColors.includes(selectedColor)) {
+            recentColors.unshift(selectedColor);
+        }
+        // Keep the list at a max of 5
+        if (recentColors.length > 5) {
+            recentColors = recentColors.slice(0, 5);
+        }
 
-    chrome.storage.sync.set(settings).then(() => {
-        // Notify the background script
-        chrome.runtime.sendMessage({
-            colorChanged: true
+        const settings = {
+            useCustomColor: true,
+            customColor: selectedColor,
+            recentColors: recentColors,
+        };
+
+        chrome.storage.sync.set(settings).then(() => {
+            // Re-render recent colors to show the new addition
+            renderRecentColors(recentColors);
+
+            // Notify the background script
+            chrome.runtime.sendMessage({
+                colorChanged: true
+            });
+
+            // Sync settings with companion extension
+            SharedSettings.syncSettings(settings);
+
+            // Show saved message
+            const status = document.getElementById("status");
+            status.textContent = "Custom color applied!";
+            setTimeout(() => {
+                status.textContent = "";
+            }, 1500);
         });
-
-        // Sync settings with companion extension
-        SharedSettings.syncSettings(settings);
-
-        // Show saved message
-        const status = document.getElementById("status");
-        status.textContent = "Custom color applied!";
-        setTimeout(() => {
-            status.textContent = "";
-        }, 1500);
     });
 }
 
@@ -233,7 +310,7 @@ function saveCustomColor() {
 function resetToDefault() {
     const settings = {
         useCustomColor: false,
-        customColor: selectedColor // Still store the last custom color
+        // We don't reset the customColor itself, just the usage of it
     };
 
     chrome.storage.sync.set(settings).then(() => {
@@ -413,16 +490,19 @@ function setupMessageListener() {
 
             // Update color settings if they've changed
             if (message.settings.hasOwnProperty('customColor') ||
-                message.settings.hasOwnProperty('useCustomColor')) {
+                message.settings.hasOwnProperty('useCustomColor') ||
+                message.settings.hasOwnProperty('recentColors')) {
 
                 // Load from storage to ensure we have the complete settings
                 chrome.storage.sync.get({
                     useCustomColor: false,
-                    customColor: "#ffffff"
+                    customColor: "#ffffff",
+                    recentColors: []
                 }).then(result => {
                     // Update the UI
                     selectedColor = result.customColor;
                     updateColorUI(selectedColor);
+                    renderRecentColors(result.recentColors);
                 });
             }
         }
@@ -439,7 +519,10 @@ function initColorPicker(callback) {
 
     // Load saved preferences
     loadSavedPreferences(callback);
-
+    
+    // Render preset buttons if the container exists
+    renderPresetButtons();
+    
     // Set up test sync button if present
     const testSyncButton = document.getElementById("test-sync");
     if (testSyncButton) {
@@ -464,6 +547,7 @@ const ColorPicker = {
     selectedColor,
     rgbValues
 };
+
 document.addEventListener("DOMContentLoaded", () => {
     // Initialize color picker
     initColorPicker();

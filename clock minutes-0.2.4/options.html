@@ -163,6 +163,12 @@
     <!-- Color Picker Section -->
     <div class="section">
       <h2>Clock Color</h2>
+      
+      <div class="preset-themes-container" style="margin-bottom: 20px;">
+        <h3 style="margin-bottom: 10px;">Preset Themes</h3>
+        <div id="preset-buttons" style="display: flex; gap: 10px; flex-wrap: wrap;"></div>
+      </div>
+
       <div class="color-picker-container">
         <!-- Color spectrum -->
         <div class="color-spectrum-container">
@@ -195,6 +201,11 @@
         <div class="color-preview-container">
           <div class="color-preview" id="color-preview"></div>
           <input type="text" id="custom-color" placeholder="#RRGGBB">
+        </div>
+        
+        <div class="recent-colors-container" style="margin-top: 20px;">
+            <h3 style="margin-bottom: 10px;">Recently Used</h3>
+            <div id="recent-colors" style="display: flex; gap: 10px; flex-wrap: wrap;"></div>
         </div>
       </div>
       
