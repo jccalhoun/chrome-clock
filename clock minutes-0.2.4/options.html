@@ -155,6 +155,15 @@
         font-size: 14px;
         height: 20px;
       }
+
+      /* [FIX] Added styles for the recent color swatches */
+      .recent-color-swatch {
+        width: 24px;
+        height: 24px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
@@ -220,6 +229,8 @@
     
     <div class="status" id="status"></div>
     <script src="shared-settings.js"></script>
-    <script src="color-picker-logic.js"></script>
+    <script src="color-utils.js"></script>
+    <script src="color-picker-state.js"></script>
+    <script src="color-picker-main.js"></script>
   </body>
 </html>
