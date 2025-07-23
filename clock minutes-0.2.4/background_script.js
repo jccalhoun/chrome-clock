@@ -2,7 +2,7 @@
 importScripts('shared-settings.js');
 
 // =================================================================
-// GLOBAL CONSTANTS
+// GLOBAL CONSTANTS & CACHE
 // =================================================================
 
 /**
@@ -10,6 +10,39 @@ importScripts('shared-settings.js');
  * @type {string}
  */
 const ALARM_NAME = "update-clock-minute";
+
+// Enhanced cache management
+const MAX_CACHE_SIZE = 120; // Cache up to 2 hours of minute icons
+/**
+ * A cache to store previously rendered icons.
+ * The key is a string combination of the text and color, and the value is the ImageData.
+ * @type {Object<string, ImageData>}
+ */
+const iconCache = new Map();
+const pendingDraws = new Map(); // Track pending draws to prevent duplicates
+
+// =================================================================
+// CACHE UTILITIES
+// =================================================================
+
+function generateCacheKey(text, color) {
+    return `${text}-${color}`;
+}
+
+function addToCache(cacheKey, imageData) {
+    // Manage cache size
+    if (iconCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = iconCache.keys().next().value;
+        iconCache.delete(firstKey);
+    }
+    iconCache.set(cacheKey, imageData);
+}
+
+function clearCache() {
+    iconCache.clear();
+    pendingDraws.clear();
+    console.log("Icon cache cleared");
+}
 
 // =================================================================
 // CORE LOGIC
@@ -24,7 +57,7 @@ async function updateClock() {
         // 1. Load the latest color settings from chrome.storage.sync.
         const settings = await chrome.storage.sync.get({
             useCustomColor: false,
-            customColor: "#ffffff",
+            customColor: "#ffffff"
         });
 
         // 2. Prepare data for drawing the icon.
@@ -33,27 +66,68 @@ async function updateClock() {
         // Pad with a leading zero for single-digit minutes (e.g., "05").
         const textToDraw = minutes < 10 ? '0' + minutes : minutes.toString();
         const colorToUse = settings.useCustomColor ? settings.customColor : "black";
+        const cacheKey = generateCacheKey(textToDraw, colorToUse);
 
-        // 3. Ensure the offscreen document is running.
-        await setupOffscreenDocument();
+        // Check cache first
+        if (iconCache.has(cacheKey)) {
+            await chrome.action.setIcon({
+                imageData: iconCache.get(cacheKey)
+            });
+            await updateTitle(date);
+            return;
+        }
 
-        // 4. Send a message to the offscreen document to draw the icon.
-        chrome.runtime.sendMessage({
-            type: 'draw-icon',
-            target: 'offscreen',
-            data: {
-                text: textToDraw,
-                color: colorToUse,
+        // Check if we're already drawing this exact icon
+        if (pendingDraws.has(cacheKey)) {
+            await pendingDraws.get(cacheKey); // Wait for the pending draw to complete
+            if (iconCache.has(cacheKey)) {
+                await chrome.action.setIcon({
+                    imageData: iconCache.get(cacheKey)
+                });
+                await updateTitle(date);
+                return;
             }
-        });
+        }
 
-        // 5. Update the tooltip with the full current time.
-        const timeString = date.toLocaleTimeString();
-        await chrome.action.setTitle({ title: timeString });
+        // Create a promise to track this draw operation
+        const drawPromise = drawIcon(textToDraw, colorToUse, cacheKey);
+        pendingDraws.set(cacheKey, drawPromise);
+
+        try {
+            await drawPromise;
+            await updateTitle(date);
+        } finally {
+            pendingDraws.delete(cacheKey); // Always clean up
+        }
 
     } catch (error) {
         console.error("Error updating clock:", error);
+        await chrome.action.setTitle({
+            title: new Date().toLocaleTimeString()
+        });
     }
+}
+
+async function drawIcon(text, color, cacheKey) {
+    await setupOffscreenDocument();
+
+    // This function will now be controlled by the message listener's callback
+    chrome.runtime.sendMessage({
+        type: 'draw-icon',
+        target: 'offscreen',
+        data: {
+            text,
+            color,
+            cacheKey
+        }
+    });
+}
+
+async function updateTitle(date) {
+    const timeString = date.toLocaleTimeString();
+    await chrome.action.setTitle({
+        title: date.toLocaleTimeString()
+    });
 }
 
 // =================================================================
@@ -69,7 +143,8 @@ let creating;
  * Creates the offscreen document for drawing if it doesn't already exist.
  */
 async function setupOffscreenDocument() {
-    if (await chrome.offscreen.hasDocument()) return;
+    if (await chrome.offscreen.hasDocument())
+        return;
     if (creating) {
         await creating;
     } else {
@@ -84,23 +159,54 @@ async function setupOffscreenDocument() {
 }
 
 // =================================================================
-// EVENT LISTENERS
+// EVENT LISTENERS & PRECISE SCHEDULING
 // =================================================================
+
+/**
+ * Calculates the start of the next minute and schedules a precise alarm.
+ */
+function scheduleNextMinuteUpdate() {
+    const now = new Date();
+    // Calculate the time for the start of the next minute
+    const nextMinute = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+            now.getHours(),
+            now.getMinutes() + 1, // Move to the next minute
+            0, // Reset seconds
+            0 // Reset milliseconds
+        );
+
+    // Create a precise, non-repeating alarm
+    chrome.alarms.create(ALARM_NAME, {
+        when: nextMinute.getTime()
+    });
+    console.log(`Next minute update scheduled for: ${nextMinute.toLocaleTimeString()}`);
+}
 
 /**
  * Handles messages from other parts of the extension, like the offscreen document.
  */
-chrome.runtime.onMessage.addListener(async (message) => {
+chrome.runtime.onMessage.addListener(async(message) => {
     // When the icon has been drawn, set it as the extension icon.
     if (message.type === 'icon-drawn' && message.imageData) {
         try {
             // Reconstruct the ImageData object from the serialized data.
             const reconstructedImageData = new ImageData(
-                new Uint8ClampedArray(message.imageData.data),
-                message.imageData.width,
-                message.imageData.height
-            );
-            await chrome.action.setIcon({ imageData: reconstructedImageData });
+                    new Uint8ClampedArray(message.imageData.data),
+                    message.imageData.width,
+                    message.imageData.height);
+
+            const cacheKey = message.cacheKey;
+
+            if (message.cacheKey) {
+                addToCache(message.cacheKey, reconstructedImageData);
+            }
+
+            await chrome.action.setIcon({
+                imageData: reconstructedImageData
+            });
         } catch (error) {
             console.error("Failed to set icon:", error);
         } finally {
@@ -118,17 +224,23 @@ chrome.runtime.onMessage.addListener(async (message) => {
  */
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'sync') {
-        console.log("Storage change detected, updating clock.");
+        // Clear the cache to ensure icons are redrawn with the new settings.
+        const visualChanges = ['useCustomColor', 'customColor'];
+        if (visualChanges.some(key => key in changes)) {
+            clearCache();
+        }
         updateClock();
     }
 });
 
 /**
- * Handles the clock update alarm, which fires every minute.
+ * Handles the precise clock update alarm.
+ * When it fires, it updates the clock and schedules the next alarm.
  */
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ALARM_NAME) {
         updateClock();
+        scheduleNextMinuteUpdate(); // Schedule the next update
     }
 });
 
@@ -137,10 +249,11 @@ chrome.alarms.onAlarm.addListener((alarm) => {
  */
 function initializeExtension() {
     console.log("Extension initializing...");
-    // Create an alarm to update the clock every minute.
-    chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
+    
     // Run an initial update to set the icon right away.
     updateClock();
+    // Schedule the first precise alarm.
+    scheduleNextMinuteUpdate();
 }
 
 /**
@@ -159,5 +272,8 @@ chrome.runtime.onStartup.addListener(() => {
     initializeExtension();
 });
 
+chrome.runtime.onSuspend.addListener(() => {
+    clearCache();
+});
 // Log that the background script has been loaded.
 console.log("Background script for minutes loaded.");

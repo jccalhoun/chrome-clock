@@ -6,9 +6,12 @@
 chrome.runtime.onMessage.addListener(async(message) => {
     // Ensure the message is intended for this offscreen document and is the correct type
     if (message.target === 'offscreen' && message.type === 'draw-icon') {
-        // Await the completion of the drawIcon function.
-        // This ensures that even if messages arrive in quick succession, they are processed properly.
-        await drawIcon(message.data.text, message.data.color, message.data.use24HourFormat);
+        await drawIcon(
+            message.data.text,
+            message.data.color,
+            message.data.use24HourFormat,
+            message.data.cacheKey // Pass through the cache key
+        );
     }
 });
 
@@ -18,7 +21,7 @@ chrome.runtime.onMessage.addListener(async(message) => {
  * @param {string} color - The color of the text.
  * @param {boolean} use24HourFormat - Determines if a colon is added.
  */
-async function drawIcon(text, color, use24HourFormat) {
+async function drawIcon(text, color, use24HourFormat, cacheKey) {
     try {
         // Create an in-memory canvas to draw on.
         const canvas = new OffscreenCanvas(32, 32);
@@ -65,11 +68,18 @@ async function drawIcon(text, color, use24HourFormat) {
         // Send the prepared data in a new message back to the service worker.
         await chrome.runtime.sendMessage({
             type: 'icon-drawn',
-            imageData: serializableImageData
+            imageData: serializableImageData,
+            cacheKey: cacheKey
         });
 
     } catch (error) {
         // If any part of the drawing or sending fails, log the error.
         console.error("Error drawing icon in offscreen document:", error);
+        // Send error back to background script
+        await chrome.runtime.sendMessage({
+            type: 'icon-error',
+            error: error.message,
+            cacheKey: cacheKey
+        });
     }
 }
