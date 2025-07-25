@@ -11,6 +11,10 @@
  * @returns {string} The HEX color string (e.g., "#ffffff").
  */
 function rgbToHex(r, g, b) {
+    // Add validation to clamp values between 0 and 255
+    r = Math.max(0, Math.min(255, r));
+    g = Math.max(0, Math.min(255, g));
+    b = Math.max(0, Math.min(255, b));
     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 

@@ -11,6 +11,9 @@
  * @returns {string} The HEX color string (e.g., "#ffffff").
  */
 function rgbToHex(r, g, b) {
+    r = Math.max(0, Math.min(255, r));
+    g = Math.max(0, Math.min(255, g));
+    b = Math.max(0, Math.min(255, b));
     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
@@ -26,17 +29,16 @@ function hexToRgb(hex) {
     hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
 
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ?
-        {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16),
-        } :
-        {
-            r: 0,
-            g: 0,
-            b: 0
-        }; // Return black if the format is invalid
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+    }
+     : {
+        r: 0,
+        g: 0,
+        b: 0
+    }; // Return black if the format is invalid
 }
 
 /**
@@ -47,7 +49,9 @@ function hexToRgb(hex) {
  * @returns {{r: number, g: number, b: number}} An object with r, g, and b properties.
  */
 function hsvToRgb(h, s, v) {
-    let r, g, b;
+    let r,
+    g,
+    b;
     const i = Math.floor(h / 60) % 6;
     const f = h / 60 - i;
     const p = v * (1 - s);
@@ -55,12 +59,36 @@ function hsvToRgb(h, s, v) {
     const t = v * (1 - (1 - f) * s);
 
     switch (i) {
-        case 0: r = v; g = t; b = p; break;
-        case 1: r = q; g = v; b = p; break;
-        case 2: r = p; g = v; b = t; break;
-        case 3: r = p; g = q; b = v; break;
-        case 4: r = t; g = p; b = v; break;
-        case 5: r = v; g = p; b = q; break;
+    case 0:
+        r = v;
+        g = t;
+        b = p;
+        break;
+    case 1:
+        r = q;
+        g = v;
+        b = p;
+        break;
+    case 2:
+        r = p;
+        g = v;
+        b = t;
+        break;
+    case 3:
+        r = p;
+        g = q;
+        b = v;
+        break;
+    case 4:
+        r = t;
+        g = p;
+        b = v;
+        break;
+    case 5:
+        r = v;
+        g = p;
+        b = q;
+        break;
     }
 
     return {

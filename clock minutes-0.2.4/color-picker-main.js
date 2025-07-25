@@ -61,16 +61,24 @@ document.addEventListener("DOMContentLoaded", () => {
      */
     function updateColorSelectorFromColor(hex) {
         const rgb = hexToRgb(hex);
-        const r = rgb.r / 255, g = rgb.g / 255, b = rgb.b / 255;
-        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        const r = rgb.r / 255,
+        g = rgb.g / 255,
+        b = rgb.b / 255;
+        const max = Math.max(r, g, b),
+        min = Math.min(r, g, b);
         const v = max;
         let h = 0;
         if (max !== min) {
-            if (max === r) { h = (g - b) / (max - min); }
-            else if (max === g) { h = 2 + (b - r) / (max - min); }
-            else { h = 4 + (r - g) / (max - min); }
+            if (max === r) {
+                h = (g - b) / (max - min);
+            } else if (max === g) {
+                h = 2 + (b - r) / (max - min);
+            } else {
+                h = 4 + (r - g) / (max - min);
+            }
             h *= 60;
-            if (h < 0) h += 360;
+            if (h < 0)
+                h += 360;
         }
         const rect = elements.spectrumContainer.getBoundingClientRect();
         const x = (h / 360) * rect.width;
@@ -83,14 +91,25 @@ document.addEventListener("DOMContentLoaded", () => {
      * Renders the preset theme buttons.
      */
     function renderPresetButtons() {
-        if (!elements.presetContainer) return;
+        if (!elements.presetContainer)
+            return;
 
-        const presetThemes = [
-            { name: 'Default', color: '#000000' },
-            { name: 'Dark Mode', color: '#FFFFFF' },
-            { name: 'Ocean Blue', color: '#3498db' },
-            { name: 'Forest Green', color: '#2ecc71' },
-            { name: 'Sunset Orange', color: '#e67e22' },
+        const presetThemes = [{
+                name: 'Default',
+                color: '#000000'
+            }, {
+                name: 'Dark Mode',
+                color: '#FFFFFF'
+            }, {
+                name: 'Ocean Blue',
+                color: '#3498db'
+            }, {
+                name: 'Forest Green',
+                color: '#2ecc71'
+            }, {
+                name: 'Sunset Orange',
+                color: '#e67e22'
+            },
         ];
 
         elements.presetContainer.innerHTML = '';
@@ -114,9 +133,11 @@ document.addEventListener("DOMContentLoaded", () => {
      * @param {string[]} recentColors - An array of recent color hex strings.
      */
     function renderRecentColors(recentColors = []) {
-        if (!elements.recentContainer) return;
+        if (!elements.recentContainer)
+            return;
         elements.recentContainer.innerHTML = '';
-        if (!Array.isArray(recentColors)) return; // Don't render if data is invalid
+        if (!Array.isArray(recentColors))
+            return; // Don't render if data is invalid
         recentColors.forEach(color => {
             const swatch = document.createElement('div');
             swatch.className = 'recent-color-swatch';
@@ -136,7 +157,9 @@ document.addEventListener("DOMContentLoaded", () => {
      */
     function showStatusMessage(message) {
         elements.status.textContent = message;
-        setTimeout(() => { elements.status.textContent = ""; }, 1500);
+        setTimeout(() => {
+            elements.status.textContent = "";
+        }, 1500);
     }
 
     // --- Event Handlers ---
@@ -185,27 +208,46 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function handleDisplayChange(event, settingKey) {
-        await saveDisplayPreferences({ [settingKey]: event.target.checked });
+        await saveDisplayPreferences({
+            [settingKey]: event.target.checked
+        });
         showStatusMessage("Display setting updated!");
     }
 
     // --- Initialization ---
 
     function setupEventListeners() {
-        elements.saveButton.addEventListener("click", handleSave);
-        elements.resetButton.addEventListener("click", handleReset);
+        if (elements.saveButton) {
+            elements.saveButton.addEventListener("click", handleSave);
+        }
+        if (elements.resetButton) {
+            elements.resetButton.addEventListener("click", handleReset);
+        }
+		if (elements.customColorInput) {
         elements.customColorInput.addEventListener("change", () => updateColorUI(elements.customColorInput.value));
+		}
         [elements.redSlider, elements.greenSlider, elements.blueSlider].forEach(slider => {
-            slider.addEventListener("input", handleRGBChange);
+            if (slider) {
+				slider.addEventListener("input", handleRGBChange);
+			}
         });
-        elements.spectrumContainer.addEventListener("mousedown", e => { isDragging = true; handleSpectrumInteraction(e); });
+        elements.spectrumContainer.addEventListener("mousedown", e => {
+            isDragging = true;
+            handleSpectrumInteraction(e);
+        });
         window.addEventListener("mousemove", e => isDragging && handleSpectrumInteraction(e));
         window.addEventListener("mouseup", () => isDragging = false);
-        elements.spectrumContainer.addEventListener("touchstart", e => { isDragging = true; handleSpectrumInteraction(e); e.preventDefault(); });
+        elements.spectrumContainer.addEventListener("touchstart", e => {
+            isDragging = true;
+            handleSpectrumInteraction(e);
+            e.preventDefault();
+        });
         window.addEventListener("touchmove", e => isDragging && handleSpectrumInteraction(e));
         window.addEventListener("touchend", () => isDragging = false);
-        if (elements.timeFormatToggle) elements.timeFormatToggle.addEventListener("change", e => handleDisplayChange(e, 'use24HourFormat'));
-        if (elements.leadingZeroToggle) elements.leadingZeroToggle.addEventListener("change", e => handleDisplayChange(e, 'showLeadingZero'));
+        if (elements.timeFormatToggle)
+            elements.timeFormatToggle.addEventListener("change", e => handleDisplayChange(e, 'use24HourFormat'));
+        if (elements.leadingZeroToggle)
+            elements.leadingZeroToggle.addEventListener("change", e => handleDisplayChange(e, 'showLeadingZero'));
     }
 
     async function init() {
@@ -213,8 +255,10 @@ document.addEventListener("DOMContentLoaded", () => {
         updateColorUI(settings.customColor);
         renderRecentColors(settings.recentColors);
         renderPresetButtons();
-        if (elements.timeFormatToggle) elements.timeFormatToggle.checked = settings.use24HourFormat;
-        if (elements.leadingZeroToggle) elements.leadingZeroToggle.checked = settings.showLeadingZero;
+        if (elements.timeFormatToggle)
+            elements.timeFormatToggle.checked = settings.use24HourFormat;
+        if (elements.leadingZeroToggle)
+            elements.leadingZeroToggle.checked = settings.showLeadingZero;
         setupEventListeners();
     }
 

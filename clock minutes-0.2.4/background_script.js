@@ -21,6 +21,9 @@ const MAX_CACHE_SIZE = 120; // Cache up to 2 hours of minute icons
 const iconCache = new Map();
 const pendingDraws = new Map(); // Track pending draws to prevent duplicates
 
+// A map to hold the resolve/reject functions for pending icon draws
+const pendingIconCallbacks = {};
+
 // =================================================================
 // CACHE UTILITIES
 // =================================================================
@@ -45,6 +48,73 @@ function clearCache() {
 }
 
 // =================================================================
+// HELPER FUNCTIONS
+// =================================================================
+
+let creating; // Promise to prevent race conditions
+async function setupOffscreenDocument() {
+    try {
+        if (await chrome.offscreen.hasDocument()) {
+            return;
+        }
+        if (creating) {
+            await creating;
+        } else {
+            creating = chrome.offscreen.createDocument({
+                url: 'offscreen.html',
+                reasons: ['DOM_PARSER'],
+                justification: 'To draw the clock icon on a canvas.',
+            });
+            await creating;
+            creating = null;
+        }
+    } catch (error) {
+        console.error("Error setting up offscreen document:", error);
+    }
+}
+
+async function updateTitle(date) {
+    const timeString = date.toLocaleTimeString();
+    await chrome.action.setTitle({
+        title: timeString
+    });
+}
+
+// =================================================================
+// CORE LOGIC
+// =================================================================
+
+async function drawIcon(text, color, cacheKey) {
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            reject(new Error('Icon drawing timeout'));
+            delete pendingIconCallbacks[cacheKey];
+        }, 5000); // 5-second timeout
+
+        pendingIconCallbacks[cacheKey] = {
+            resolve: (imageData) => {
+                clearTimeout(timeout);
+                resolve(imageData);
+            },
+            reject: (err) => {
+                clearTimeout(timeout);
+                reject(err);
+            },
+        };
+
+        // Send message to the offscreen document to perform the drawing
+        chrome.runtime.sendMessage({
+            type: 'draw-icon',
+            target: 'offscreen',
+            data: {
+                text,
+                color,
+                cacheKey
+            }
+        });
+    });
+}
+
 // CORE LOGIC
 // =================================================================
 
@@ -64,7 +134,7 @@ async function updateClock() {
         const date = new Date();
         const minutes = date.getMinutes();
         // Pad with a leading zero for single-digit minutes (e.g., "05").
-        const textToDraw = minutes < 10 ? '0' + minutes : minutes.toString();
+        const textToDraw = String(minutes).padStart(2, '0');
         const colorToUse = settings.useCustomColor ? settings.customColor : "black";
         const cacheKey = generateCacheKey(textToDraw, colorToUse);
 
@@ -80,22 +150,27 @@ async function updateClock() {
         // Check if we're already drawing this exact icon
         if (pendingDraws.has(cacheKey)) {
             await pendingDraws.get(cacheKey); // Wait for the pending draw to complete
-            if (iconCache.has(cacheKey)) {
-                await chrome.action.setIcon({
-                    imageData: iconCache.get(cacheKey)
-                });
-                await updateTitle(date);
-                return;
-            }
+            return;
         }
 
-        // Create a promise to track this draw operation
-        const drawPromise = drawIcon(textToDraw, colorToUse, cacheKey);
+        // 3. Start a new draw operation
+        const drawPromise = (async() => {
+            await setupOffscreenDocument();
+            const imageData = await drawIcon(textToDraw, colorToUse, cacheKey);
+
+            if (imageData) {
+                addToCache(cacheKey, imageData);
+                await chrome.action.setIcon({
+                    imageData
+                });
+            }
+            await updateTitle(date);
+        })();
+
         pendingDraws.set(cacheKey, drawPromise);
 
         try {
             await drawPromise;
-            await updateTitle(date);
         } finally {
             pendingDraws.delete(cacheKey); // Always clean up
         }
@@ -105,56 +180,6 @@ async function updateClock() {
         await chrome.action.setTitle({
             title: new Date().toLocaleTimeString()
         });
-    }
-}
-
-async function drawIcon(text, color, cacheKey) {
-    await setupOffscreenDocument();
-
-    // This function will now be controlled by the message listener's callback
-    chrome.runtime.sendMessage({
-        type: 'draw-icon',
-        target: 'offscreen',
-        data: {
-            text,
-            color,
-            cacheKey
-        }
-    });
-}
-
-async function updateTitle(date) {
-    const timeString = date.toLocaleTimeString();
-    await chrome.action.setTitle({
-        title: date.toLocaleTimeString()
-    });
-}
-
-// =================================================================
-// HELPER FUNCTIONS
-// =================================================================
-
-/**
- * A promise variable to prevent race conditions when creating the offscreen document.
- */
-let creating;
-
-/**
- * Creates the offscreen document for drawing if it doesn't already exist.
- */
-async function setupOffscreenDocument() {
-    if (await chrome.offscreen.hasDocument())
-        return;
-    if (creating) {
-        await creating;
-    } else {
-        creating = chrome.offscreen.createDocument({
-            url: 'offscreen.html',
-            reasons: ['DOM_PARSER'],
-            justification: 'To draw the clock icon on a canvas.',
-        });
-        await creating;
-        creating = null;
     }
 }
 
@@ -189,33 +214,23 @@ function scheduleNextMinuteUpdate() {
  * Handles messages from other parts of the extension, like the offscreen document.
  */
 chrome.runtime.onMessage.addListener(async(message) => {
-    // When the icon has been drawn, set it as the extension icon.
-    if (message.type === 'icon-drawn' && message.imageData) {
-        try {
-            // Reconstruct the ImageData object from the serialized data.
-            const reconstructedImageData = new ImageData(
-                    new Uint8ClampedArray(message.imageData.data),
-                    message.imageData.width,
-                    message.imageData.height);
-
-            const cacheKey = message.cacheKey;
-
-            if (message.cacheKey) {
-                addToCache(message.cacheKey, reconstructedImageData);
-            }
-
-            await chrome.action.setIcon({
-                imageData: reconstructedImageData
-            });
-        } catch (error) {
-            console.error("Failed to set icon:", error);
-        } finally {
-            // Close the offscreen document to save resources.
-            if (await chrome.offscreen.hasDocument()) {
-                await chrome.offscreen.closeDocument();
-            }
-        }
+    const cacheKey = message.cacheKey;
+    if (!cacheKey || !pendingIconCallbacks[cacheKey]) {
+        return;
     }
+
+    if (message.type === 'icon-drawn' && message.imageData) {
+        const reconstructedImageData = new ImageData(
+                new Uint8ClampedArray(message.imageData.data),
+                message.imageData.width,
+                message.imageData.height);
+        pendingIconCallbacks[cacheKey].resolve(reconstructedImageData);
+    } else if (message.type === 'icon-error') {
+        pendingIconCallbacks[cacheKey].reject(new Error(message.error));
+    }
+
+    // Clean up the callback regardless of outcome
+    delete pendingIconCallbacks[cacheKey];
 });
 
 /**
@@ -268,12 +283,6 @@ chrome.runtime.onInstalled.addListener(() => {
  * Fired when the browser is started.
  */
 chrome.runtime.onStartup.addListener(() => {
-    console.log("Browser started.");
+    console.log("Browser started, initializing minutes extension.");
     initializeExtension();
 });
-
-chrome.runtime.onSuspend.addListener(() => {
-    clearCache();
-});
-// Log that the background script has been loaded.
-console.log("Background script for minutes loaded.");

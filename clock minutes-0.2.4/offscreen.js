@@ -2,8 +2,11 @@
 
 /**
  * Listens for messages from the background script.
+ * When a 'draw-icon' message is received, it triggers the icon drawing process.
+ * This listener is async because the work it triggers (drawIcon) is asynchronous.
  */
 chrome.runtime.onMessage.addListener(async(message) => {
+	// Ensure the message is intended for this offscreen document and is the correct type
     if (message.target === 'offscreen' && message.type === 'draw-icon') {
         // Pass the entire data object to the drawing function
         await drawIcon(message.data);
@@ -11,15 +14,20 @@ chrome.runtime.onMessage.addListener(async(message) => {
 });
 
 /**
- * Draws the clock icon and sends it back with the cache key.
- * This version handles potential errors and communicates them back.
+ *  * Asynchronously draws the clock icon on a canvas and sends the image data back to the service worker.
+ * @param {object} data - An object containing the text, color, and cacheKey.
  */
 async function drawIcon(data) {
-    const { text, color, cacheKey } = data; // Destructure data for clarity
+    const { text, color, cacheKey } = data; // Destructure the data object
 
     try {
+        // Create an in-memory canvas to draw on.
         const canvas = new OffscreenCanvas(32, 32);
-        const context = canvas.getContext("2d", { willReadFrequently: true });
+        const context = canvas.getContext("2d", {
+            willReadFrequently: true
+        });
+
+        // Clear the canvas to ensure no artifacts from previous drawings.
 
         context.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -27,7 +35,7 @@ async function drawIcon(data) {
         let bestFontSize = canvas.height;
         context.textAlign = "left";
         context.textBaseline = "middle";
-
+ 
         for (let currentSize = Math.floor(canvas.height * 1.2); currentSize >= 1; currentSize--) {
             context.font = `bold ${currentSize}px Arial`;
             const metrics = context.measureText(text);
@@ -48,7 +56,7 @@ async function drawIcon(data) {
         const serializableImageData = {
             width: imageData.width,
             height: imageData.height,
-            data: Array.from(imageData.data) // This line was incomplete
+            data: Array.from(imageData.data)
         };
 
         // Send the successful result back to the background script

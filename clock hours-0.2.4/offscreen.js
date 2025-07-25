@@ -32,7 +32,7 @@ async function drawIcon(text, color, use24HourFormat, cacheKey) {
         // Clear the canvas to ensure no artifacts from previous drawings.
         context.clearRect(0, 0, canvas.width, canvas.height);
 
-        const drawText = use24HourFormat ? text + ":" : text + ":";
+        const drawText = text + ":";
 
         // --- Dynamic Font Size Calculation ---
         let bestFontSize = canvas.height;
@@ -54,7 +54,7 @@ async function drawIcon(text, color, use24HourFormat, cacheKey) {
         context.font = `bold ${bestFontSize}px Arial`;
         context.fillText(drawText, canvas.width, canvas.height / 2);
 
-        // Get the pixel data from the canvas.
+        //Serialize ImageData for cross-context messaging.
         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
         // --- The Fix: Serialize the ImageData to a plain object before sending ---

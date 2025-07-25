@@ -18,8 +18,11 @@ const MAX_CACHE_SIZE = 100;
  * The key is a string combination of the text and color, and the value is the ImageData.
  * @type {Object<string, ImageData>}
  */
- const iconCache = new Map();
+const iconCache = new Map();
 const pendingDraws = new Map(); // Track pending draws to prevent duplicates
+
+// A map to hold the resolve/reject functions for pending icon draws
+const pendingIconCallbacks = {};
 
 // =================================================================
 // CACHE UTILITIES
@@ -45,6 +48,41 @@ function clearCache() {
 }
 
 // =================================================================
+// HELPER FUNCTIONS
+// =================================================================
+
+let creating; // Promise to prevent race conditions when creating the offscreen document
+async function setupOffscreenDocument() {
+    try {
+        if (await chrome.offscreen.hasDocument()) {
+            return;
+        }
+        if (creating) {
+            await creating;
+        } else {
+            creating = chrome.offscreen.createDocument({
+                url: 'offscreen.html',
+                reasons: ['DOM_PARSER'],
+                justification: 'To draw the clock icon on a canvas.',
+            });
+            await creating;
+            creating = null;
+        }
+    } catch (error) {
+        console.error("Error setting up offscreen document:", error);
+    }
+}
+
+async function updateTitle(date, use24HourFormat) {
+    const timeString = date.toLocaleTimeString([], {
+        hour12: !use24HourFormat
+    });
+    await chrome.action.setTitle({
+        title: timeString
+    });
+}
+
+// =================================================================
 // CORE LOGIC
 // =================================================================
 
@@ -52,6 +90,41 @@ function clearCache() {
  * The main function to update the clock icon.
  * This function is self-contained and fetches all necessary settings from storage each time it runs.
  */
+
+async function drawIcon(text, color, use24HourFormat, cacheKey) {
+    // This function now returns a promise that will be resolved or rejected
+    // by the onMessage listener when the offscreen document responds.
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            reject(new Error('Icon drawing timeout'));
+            delete pendingIconCallbacks[cacheKey];
+        }, 5000);
+
+        pendingIconCallbacks[cacheKey] = {
+            resolve: (imageData) => {
+                clearTimeout(timeout);
+                resolve(imageData);
+            },
+            reject: (err) => {
+                clearTimeout(timeout);
+                reject(err);
+            }
+        };
+
+        // Send the message to the offscreen document
+        chrome.runtime.sendMessage({
+            type: 'draw-icon',
+            target: 'offscreen',
+            data: {
+                text,
+                color,
+                use24HourFormat,
+                cacheKey
+            }
+        });
+    });
+}
+
 async function updateClock() {
     try {
         // 1. Load the latest settings directly from chrome.storage.sync.
@@ -79,12 +152,18 @@ async function updateClock() {
         }
 
         const colorToUse = settings.useCustomColor ? settings.customColor : "black";
-        const cacheKey = `${textToDraw}-${colorToUse}-${settings.use24HourFormat}`;
+
+        // After (use helper function)
+        const cacheKey = generateCacheKey(
+                textToDraw,
+                colorToUse,
+                settings.use24HourFormat,
+                settings.showLeadingZero);
 
         // Check cache first
-        if (iconCache[cacheKey]) {
+        if (iconCache.has(cacheKey)) {
             await chrome.action.setIcon({
-                imageData: iconCache[cacheKey]
+                imageData: iconCache.get(cacheKey)
             });
             await updateTitle(date, settings.use24HourFormat);
             return;
@@ -93,120 +172,38 @@ async function updateClock() {
         // Check if we're already drawing this exact icon
         if (pendingDraws.has(cacheKey)) {
             // Wait for the pending draw to complete
-            await pendingDraws.get(cacheKey);
-            // After waiting, check cache again
-            if (iconCache.has(cacheKey)) {
-                await chrome.action.setIcon({
-                    imageData: iconCache.get(cacheKey)
-                });
-                await updateTitle(date, settings.use24HourFormat);
-                return;
-            }
+            await pendingDraws.get(cacheKey); // Wait for the existing draw to complete
+            return;
         }
 
-        // Create a promise to track this draw operation
-        const drawPromise = drawIcon(textToDraw, colorToUse, settings.use24HourFormat, cacheKey);
+        // 3. Start a new draw operation
+        const drawPromise = (async() => {
+            await setupOffscreenDocument();
+            const imageData = await drawIcon(textToDraw, colorToUse, settings.use24HourFormat, cacheKey);
+
+            // The message listener will handle setting the icon, but we still add it to the cache here
+            if (imageData) {
+                addToCache(cacheKey, imageData);
+                await chrome.action.setIcon({
+                    imageData
+                });
+            }
+            await updateTitle(date, settings.use24HourFormat);
+        })();
         pendingDraws.set(cacheKey, drawPromise);
 
         try {
             await drawPromise;
-            // Icon will be set by the message listener
-            await updateTitle(date, settings.use24HourFormat);
         } finally {
+            // Always remove the pending draw promise when it's settled
             pendingDraws.delete(cacheKey);
         }
 
     } catch (error) {
         console.error("Error updating clock:", error);
-        // Fallback: set a simple text-based title
         await chrome.action.setTitle({
             title: new Date().toLocaleTimeString()
         });
-    }
-}
-
-async function drawIcon(text, color, use24HourFormat, cacheKey) {
-    await setupOffscreenDocument();
-
-    return new Promise((resolve, reject) => {
-        // Set up a timeout for the operation
-        const timeout = setTimeout(() => {
-            reject(new Error('Icon drawing timeout'));
-        }, 5000); // 5 second timeout
-
-        // Store the resolve/reject functions for this cache key
-        const cleanup = () => {
-            clearTimeout(timeout);
-            delete pendingIconCallbacks[cacheKey];
-        };
-
-        pendingIconCallbacks[cacheKey] = {
-            resolve: () => {
-                cleanup();
-                resolve();
-            },
-            reject: (err) => {
-                cleanup();
-                reject(err);
-            }
-        };
-
-        // 4. Send a message to the offscreen document to draw the icon with the specified text and color.
-        chrome.runtime.sendMessage({
-            type: 'draw-icon',
-            target: 'offscreen',
-            data: {
-                text: text,
-                color: color,
-                use24HourFormat: use24HourFormat,
-                cacheKey: cacheKey // Pass cacheKey to the offscreen script
-            }
-        });
-    });
-}
-
-        // 5. Update the tooltip (the text that appears when you hover over the extension icon).
-async function updateTitle(date, use24HourFormat) {
-    const timeString = date.toLocaleTimeString([], {
-        hour12: !use24HourFormat
-    });
-    await chrome.action.setTitle({
-        title: timeString
-    });
-}
-
-// =================================================================
-// HELPER FUNCTIONS
-// =================================================================
-
-/**
- * A promise variable to prevent race conditions when creating the offscreen document.
- * If multiple requests to create the document happen at the same time, this ensures it's only created once.
- */
-let creating;
-
-/**
- * Creates the offscreen document if it doesn't already exist.
- * This document hosts a canvas that is used to draw the clock icon.
- */
-async function setupOffscreenDocument() {
-    // If the document already exists, we don't need to do anything.
-    if (await chrome.offscreen.hasDocument())
-        return;
-
-    // If the document is already in the process of being created, wait for it to finish.
-    if (creating) {
-        await creating;
-    } else {
-        // Otherwise, create the document.
-        creating = chrome.offscreen.createDocument({
-            url: 'offscreen.html',
-            reasons: ['DOM_PARSER'],
-            justification: 'To draw the clock icon on a canvas.',
-        });
-        await creating;
-        // Reset the promise once it's resolved.
-        creating = null;
     }
 }
 
@@ -214,144 +211,58 @@ async function setupOffscreenDocument() {
 // EVENT LISTENERS & SCHEDULING
 // =================================================================
 
-// Track pending callbacks for icon drawing
-const pendingIconCallbacks = {};
-function scheduleNextHourlyUpdate() {
-    const now = new Date();
-    const nextHour = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate(),
-            now.getHours() + 1, // Move to the next hour
-            0, // Reset minutes
-            0, // Reset seconds
-            0 // Reset milliseconds
-        );
-
-    // Create a precise, non-repeating alarm for the next hour
-    chrome.alarms.create(ALARM_NAME, {
-        when: nextHour.getTime()
-    });
-    console.log(`Next hourly update scheduled for: ${nextHour.toLocaleTimeString()}`);
-}
-
-/**
- * Handles messages from other parts of the extension, primarily the offscreen document.
- */
 chrome.runtime.onMessage.addListener(async(message) => {
-    // When the offscreen document confirms that the icon has been drawn,
-    // this listener receives the image data.
+    const cacheKey = message.cacheKey;
+    if (!cacheKey || !pendingIconCallbacks[cacheKey]) {
+        return;
+    }
+
     if (message.type === 'icon-drawn' && message.imageData) {
-        try {
-            // The image data is received as a plain object, so it needs to be reconstructed into an ImageData object.
-            const reconstructedImageData = new ImageData(
-                    new Uint8ClampedArray(message.imageData.data),
-                    message.imageData.width,
-                    message.imageData.height);
-
-            const cacheKey = message.cacheKey;
-
-            // Add to cache
-            if (cacheKey) {
-                addToCache(cacheKey, reconstructedImageData);
-                console.log(`Icon cached with key: ${cacheKey}`);
-            }
-
-            // Set the icon
-            await chrome.action.setIcon({
-                imageData: reconstructedImageData
-            });
-
-            // Resolve any pending promise for this cache key
-            if (cacheKey && pendingIconCallbacks[cacheKey]) {
-                pendingIconCallbacks[cacheKey].resolve();
-            }
-
-        } catch (error) {
-            console.error("Failed to set icon:", error);
-
-            // Reject any pending promise for this cache key
-            const cacheKey = message.cacheKey;
-            if (cacheKey && pendingIconCallbacks[cacheKey]) {
-                pendingIconCallbacks[cacheKey].reject(error);
-            }
-        } finally {
-            // Clean up offscreen document
-            try {
-                if (await chrome.offscreen.hasDocument()) {
-                    await chrome.offscreen.closeDocument();
-                }
-            } catch (cleanupError) {
-                console.warn("Error cleaning up offscreen document:", cleanupError);
-            }
-        }
+        const reconstructedImageData = new ImageData(
+                new Uint8ClampedArray(message.imageData.data),
+                message.imageData.width,
+                message.imageData.height);
+        pendingIconCallbacks[cacheKey].resolve(reconstructedImageData);
+        delete pendingIconCallbacks[cacheKey]; // Clean up
+    } else if (message.type === 'icon-error') {
+        pendingIconCallbacks[cacheKey].reject(new Error(message.error));
+        delete pendingIconCallbacks[cacheKey]; // Clean up
     }
 });
 
-
-/**
- * Listens for changes in synchronized storage.
- * This is the primary trigger for updates when a user changes a setting in the options or popup page.
- */
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'sync') {
-        const visualChanges = ['useCustomColor', 'customColor', 'showLeadingZero', 'use24HourFormat'];
-        const needsCacheClearing = visualChanges.some(key => key in changes);
-
-        if (needsCacheClearing) {
-            clearCache();
-        }
+        clearCache();
         updateClock();
     }
 });
 
-/**
- * Handles all alarms. The main alarm triggers the clock update every minute.
- */
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ALARM_NAME) {
         updateClock();
-        scheduleNextHourlyUpdate(); // Schedule the next hourly update
-    } else if (alarm.name === HEALTH_CHECK_ALARM_NAME) {
-        // A health check could be added here in the future to ensure the clock is running correctly.
-        console.log("Health check alarm fired.");
     }
 });
 
-/**
- * Sets up the extension on first install or when the browser starts.
- * This ensures the clock starts running as soon as the extension is enabled.
- */
-function initializeExtension() {
-    console.log("Extension initializing...");
-    // Set up the main alarm to run every minute, which keeps the clock ticking.
+function scheduleNextHourlyUpdate() {
+    const now = new Date();
+    const nextHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0, 1, 0);
     chrome.alarms.create(ALARM_NAME, {
-        periodInMinutes: 1
+        when: nextHour.getTime()
     });
-    // Run an initial update to set the icon immediately.
-    updateClock();
-    scheduleNextHourlyUpdate(); // Schedule the first precise hourly alarm
 }
 
-/**
- * Fired when the extension is first installed.
- */
+function initializeExtension() {
+    console.log("Extension initializing...");
+    scheduleNextHourlyUpdate();
+    updateClock();
+}
+
 chrome.runtime.onInstalled.addListener(() => {
     console.log("Extension installed.");
     initializeExtension();
 });
 
-/**
- * Fired when the browser is started.
- */
 chrome.runtime.onStartup.addListener(() => {
     console.log("Browser started.");
     initializeExtension();
 });
-
-// Cleanup on extension shutdown
-chrome.runtime.onSuspend.addListener(() => {
-    clearCache();
-});
-
-console.log("Background script loaded.");
