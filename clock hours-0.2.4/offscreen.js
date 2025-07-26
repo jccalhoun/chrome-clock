@@ -62,13 +62,13 @@ async function drawIcon(text, color, use24HourFormat, cacheKey) {
         const serializableImageData = {
             width: imageData.width,
             height: imageData.height,
-            data: Array.from(imageData.data) // Convert the Uint8ClampedArray to a standard array.
-        };
-
+			data: Array.from(imageData.data) // Convert the Uint8ClampedArray to a standard array.
+        }; 
+        
         // Send the prepared data in a new message back to the service worker.
         await chrome.runtime.sendMessage({
             type: 'icon-drawn',
-            imageData: serializableImageData,
+			imageData: serializableImageData,
             cacheKey: cacheKey
         });
 

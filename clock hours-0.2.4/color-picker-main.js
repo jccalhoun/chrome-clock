@@ -223,7 +223,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (elements.resetButton) {
             elements.resetButton.addEventListener("click", handleReset);
         }
-        elements.customColorInput.addEventListener("change", () => updateColorUI(elements.customColorInput.value));
+        elements.customColorInput.addEventListener("change", () => {
+            const color = elements.customColorInput.value;
+            if (isValidHexColor(color)) {
+                updateColorUI(color);
+            } else {
+                showStatusMessage("Invalid hex color!");
+            }
+        });
         [elements.redSlider, elements.greenSlider, elements.blueSlider].forEach(slider => {
             slider.addEventListener("input", handleRGBChange);
         });

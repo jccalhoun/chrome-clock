@@ -29,7 +29,8 @@ const pendingIconCallbacks = {};
 // =================================================================
 
 function generateCacheKey(text, color, use24HourFormat, showLeadingZero) {
-    return `${text}-${color}-${use24HourFormat}-${showLeadingZero}`;
+    // Use a non-alphanumeric delimiter that won't appear in values
+    return [text, color, use24HourFormat, showLeadingZero].join('|');
 }
 
 function addToCache(cacheKey, imageData) {
@@ -216,7 +217,6 @@ chrome.runtime.onMessage.addListener(async(message) => {
     if (!cacheKey || !pendingIconCallbacks[cacheKey]) {
         return;
     }
-
     if (message.type === 'icon-drawn' && message.imageData) {
         const reconstructedImageData = new ImageData(
                 new Uint8ClampedArray(message.imageData.data),
@@ -224,6 +224,7 @@ chrome.runtime.onMessage.addListener(async(message) => {
                 message.imageData.height);
         pendingIconCallbacks[cacheKey].resolve(reconstructedImageData);
         delete pendingIconCallbacks[cacheKey]; // Clean up
+
     } else if (message.type === 'icon-error') {
         pendingIconCallbacks[cacheKey].reject(new Error(message.error));
         delete pendingIconCallbacks[cacheKey]; // Clean up
@@ -239,7 +240,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ALARM_NAME) {
-        updateClock();
+        updateClock().finally(scheduleNextHourlyUpdate);
     }
 });
 
