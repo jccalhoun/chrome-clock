@@ -1,79 +1,113 @@
-// jccalhoun/chrome-clock/chrome-clock-189b85079d5f21c255f61fa07a0526a3c3341f35/clock minutes-0.2.4/offscreen.js
+// =================================================================
+// Optimized Offscreen Document for Minutes
+// =================================================================
 
-/**
- * Listens for messages from the background script.
- * When a 'draw-icon' message is received, it triggers the icon drawing process.
- * This listener is async because the work it triggers (drawIcon) is asynchronous.
- */
-chrome.runtime.onMessage.addListener(async(message) => {
-	// Ensure the message is intended for this offscreen document and is the correct type
-    if (message.target === 'offscreen' && message.type === 'draw-icon') {
-        // Pass the entire data object to the drawing function
-        await drawIcon(message.data);
+// Canvas pool to reuse canvas instances
+class CanvasPool {
+    constructor(maxSize = 3) {
+        this.pool = [];
+        this.maxSize = maxSize;
     }
-});
+    getCanvas() {
+        if (this.pool.length > 0) {
+            return this.pool.pop();
+        }
+        const canvas = new OffscreenCanvas(32, 32);
+        const context = canvas.getContext("2d", { willReadFrequently: true, alpha: true });
+        return { canvas, context };
+    }
+    returnCanvas(canvasData) {
+        if (this.pool.length < this.maxSize && canvasData) {
+            canvasData.context.clearRect(0, 0, canvasData.canvas.width, canvasData.canvas.height);
+            this.pool.push(canvasData);
+        }
+    }
+}
+const canvasPool = new CanvasPool();
 
-/**
- *  * Asynchronously draws the clock icon on a canvas and sends the image data back to the service worker.
- * @param {object} data - An object containing the text, color, and cacheKey.
- */
+// Font measurement cache
+const fontMetricsCache = new Map();
+
+function getCachedFontMetrics(text, fontSize, context) {
+    const cacheKey = `${text}-${fontSize}`;
+    if (fontMetricsCache.has(cacheKey)) {
+        return fontMetricsCache.get(cacheKey);
+    }
+    context.font = `bold ${fontSize}px Arial`;
+    const metrics = context.measureText(text);
+    fontMetricsCache.set(cacheKey, metrics);
+    return metrics;
+}
+
+// Optimized font size calculation using binary search
+function calculateOptimalFontSize(text, canvas, context) {
+    const maxWidth = canvas.width + 2;
+    const maxHeight = canvas.height + 2;
+    let minSize = 1;
+    let maxSize = Math.floor(canvas.height * 1.2);
+    let bestSize = minSize;
+
+    while (minSize <= maxSize) {
+        const currentSize = Math.floor((minSize + maxSize) / 2);
+        const metrics = getCachedFontMetrics(text, currentSize, context);
+        if (metrics.width <= maxWidth && currentSize <= maxHeight) {
+            bestSize = currentSize;
+            minSize = currentSize + 1;
+        } else {
+            maxSize = currentSize - 1;
+        }
+    }
+    return bestSize;
+}
+
+// Main drawing function adapted for minutes
 async function drawIcon(data) {
-    const { text, color, cacheKey } = data; // Destructure the data object
+    const { text, color, cacheKey } = data;
+    const canvasData = canvasPool.getCanvas();
+    const { canvas, context } = canvasData;
 
     try {
-        // Create an in-memory canvas to draw on.
-        const canvas = new OffscreenCanvas(32, 32);
-        const context = canvas.getContext("2d", {
-            willReadFrequently: true
-        });
-
-        // Clear the canvas to ensure no artifacts from previous drawings.
+        // For minutes, we draw the text centered, not right-aligned.
+        const bestFontSize = calculateOptimalFontSize(text, canvas, context);
 
         context.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Dynamic font size calculation
-        let bestFontSize = canvas.height;
-        context.textAlign = "left";
-        context.textBaseline = "middle";
- 
-        for (let currentSize = Math.floor(canvas.height * 1.2); currentSize >= 1; currentSize--) {
-            context.font = `bold ${currentSize}px Arial`;
-            const metrics = context.measureText(text);
-            if (metrics.width <= canvas.width + 2 && currentSize <= canvas.height + 2) {
-                bestFontSize = currentSize;
-                break;
-            }
-        }
-
-        // Draw the text
         context.fillStyle = color;
         context.font = `bold ${bestFontSize}px Arial`;
-        context.fillText(text, 0, canvas.height / 2);
+        context.textAlign = "center"; // Center the text horizontally
+        context.textBaseline = "middle";
+        context.fillText(text, canvas.width / 2, canvas.height / 2);
 
         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-
-        // Serialize the image data for messaging
         const serializableImageData = {
             width: imageData.width,
             height: imageData.height,
             data: Array.from(imageData.data)
         };
 
-        // Send the successful result back to the background script
+        // Send the result back to the background script
         await chrome.runtime.sendMessage({
             type: 'icon-drawn',
             imageData: serializableImageData,
-            cacheKey: cacheKey // Always include the cache key
+            cacheKey: cacheKey
         });
 
     } catch (error) {
-        console.error("Error drawing icon in offscreen document:", error);
-
-        // Send an error message back if drawing fails
+        console.error("Error drawing minutes icon:", error);
+        // Send an error message on failure
         await chrome.runtime.sendMessage({
             type: 'icon-error',
             error: error.message,
             cacheKey: cacheKey
         });
+    } finally {
+        // Always return the canvas to the pool
+        canvasPool.returnCanvas(canvasData);
     }
 }
+
+// Simplified message listener
+chrome.runtime.onMessage.addListener((message) => {
+    if (message.target === 'offscreen' && message.type === 'draw-icon') {
+        drawIcon(message.data);
+    }
+});

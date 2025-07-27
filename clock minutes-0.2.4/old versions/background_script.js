@@ -1,62 +1,57 @@
-// Import the shared settings logic
+// Import the shared settings logic, which allows this extension to communicate with the 'hours' extension.
 importScripts('shared-settings.js');
 
 // =================================================================
 // GLOBAL CONSTANTS & CACHE
 // =================================================================
 
+/**
+ * The name for the alarm used in this extension.
+ * @type {string}
+ */
 const ALARM_NAME = "update-clock-minute";
-const MAX_CACHE_SIZE = 60; // Cache for a full hour of minutes
 
-// Optimized cache with LRU eviction
-class OptimizedIconCache {
-    constructor(maxSize = MAX_CACHE_SIZE) {
-        this.maxSize = maxSize;
-        this.cache = new Map();
-        this.accessOrder = new Map(); // Tracks access time for LRU
-    }
-    // The key for minutes is simpler as it only depends on text and color
-    generateCacheKey(text, color) {
-        return `${text}-${color}`;
-    }
-    get(key) {
-        if (this.cache.has(key)) {
-            this.accessOrder.set(key, Date.now()); // Update access time
-            return this.cache.get(key);
-        }
-        return null;
-    }
-    set(key, value) {
-        if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
-            // Evict the least recently used item
-            const oldestKey = this.accessOrder.keys().next().value;
-            this.cache.delete(oldestKey);
-            this.accessOrder.delete(oldestKey);
-        }
-        this.cache.set(key, value);
-        this.accessOrder.set(key, Date.now());
-    }
-    has(key) {
-        return this.cache.has(key);
-    }
-    clear() {
-        this.cache.clear();
-        this.accessOrder.clear();
-    }
-    get size() {
-        return this.cache.size;
-    }
-}
+// Enhanced cache management
+const MAX_CACHE_SIZE = 120; // Cache up to 2 hours of minute icons
+/**
+ * A cache to store previously rendered icons.
+ * The key is a string combination of the text and color, and the value is the ImageData.
+ * @type {Object<string, ImageData>}
+ */
+const iconCache = new Map();
+const pendingDraws = new Map(); // Track pending draws to prevent duplicates
 
-const iconCache = new OptimizedIconCache();
-const pendingDraws = new Map();
+// A map to hold the resolve/reject functions for pending icon draws
 const pendingIconCallbacks = {};
 
 // =================================================================
-// HELPER & DRAWING FUNCTIONS
+// CACHE UTILITIES
 // =================================================================
 
-let creating; // Promise to prevent race conditions for offscreen document
+function generateCacheKey(text, color) {
+    return `${text}-${color}`;
+}
+
+function addToCache(cacheKey, imageData) {
+    // Manage cache size
+    if (iconCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = iconCache.keys().next().value;
+        iconCache.delete(firstKey);
+    }
+    iconCache.set(cacheKey, imageData);
+}
+
+function clearCache() {
+    iconCache.clear();
+    pendingDraws.clear();
+    console.log("Icon cache cleared");
+}
+
+// =================================================================
+// HELPER FUNCTIONS
+// =================================================================
+
+let creating; // Promise to prevent race conditions
 async function setupOffscreenDocument() {
     try {
         if (await chrome.offscreen.hasDocument()) {
@@ -85,13 +80,16 @@ async function updateTitle(date) {
     });
 }
 
-// Simplified and reliable icon drawing function
+// =================================================================
+// CORE LOGIC
+// =================================================================
+
 async function drawIcon(text, color, cacheKey) {
     return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
+            reject(new Error('Icon drawing timeout'));
             delete pendingIconCallbacks[cacheKey];
-            reject(new Error('Icon drawing for minutes timed out after 5 seconds'));
-        }, 5000);
+        }, 5000); // 5-second timeout
 
         pendingIconCallbacks[cacheKey] = {
             resolve: (imageData) => {
@@ -104,6 +102,7 @@ async function drawIcon(text, color, cacheKey) {
             },
         };
 
+        // Send message to the offscreen document to perform the drawing
         chrome.runtime.sendMessage({
             type: 'draw-icon',
             target: 'offscreen',
@@ -112,63 +111,60 @@ async function drawIcon(text, color, cacheKey) {
                 color,
                 cacheKey
             }
-        }).catch(err => {
-            pendingIconCallbacks[cacheKey]?.reject(new Error(`Failed to send message to offscreen: ${err.message}`));
-            delete pendingIconCallbacks[cacheKey];
         });
     });
 }
 
-// =================================================================
 // CORE LOGIC
 // =================================================================
 
+/**
+ * The main function to update the clock icon with the current minute.
+ * It fetches settings from storage each time to ensure it's up-to-date.
+ */
 async function updateClock() {
     try {
+        // 1. Load the latest color settings from chrome.storage.sync.
         const settings = await chrome.storage.sync.get({
             useCustomColor: false,
             customColor: "#ffffff"
         });
 
+        // 2. Prepare data for drawing the icon.
         const date = new Date();
         const minutes = date.getMinutes();
+        // Pad with a leading zero for single-digit minutes (e.g., "05").
         const textToDraw = String(minutes).padStart(2, '0');
         const colorToUse = settings.useCustomColor ? settings.customColor : "black";
-        const cacheKey = iconCache.generateCacheKey(textToDraw, colorToUse);
+        const cacheKey = generateCacheKey(textToDraw, colorToUse);
 
-        const cachedIcon = iconCache.get(cacheKey);
-        if (cachedIcon) {
+        // Check cache first
+        if (iconCache.has(cacheKey)) {
             await chrome.action.setIcon({
-                imageData: cachedIcon
+                imageData: iconCache.get(cacheKey)
             });
             await updateTitle(date);
             return;
         }
 
+        // Check if we're already drawing this exact icon
         if (pendingDraws.has(cacheKey)) {
-            await pendingDraws.get(cacheKey);
+            await pendingDraws.get(cacheKey); // Wait for the pending draw to complete
             return;
         }
 
+        // 3. Start a new draw operation
         const drawPromise = (async() => {
-            try {
-                await setupOffscreenDocument();
-                const imageData = await drawIcon(textToDraw, colorToUse, cacheKey);
-                if (imageData) {
-                    iconCache.set(cacheKey, imageData);
-                    await chrome.action.setIcon({
-                        imageData
-                    });
-                }
-                await updateTitle(date);
-            } catch (drawError) {
-                console.error("Minutes draw operation failed:", drawError.message);
-                // Fallback to the default black icon on error
+            await setupOffscreenDocument();
+            const imageData = await drawIcon(textToDraw, colorToUse, cacheKey);
+
+            if (imageData) {
+                addToCache(cacheKey, imageData);
                 await chrome.action.setIcon({
-                    path: "icon16.png"
+                    imageData
                 });
-                await updateTitle(new Date());
             }
+            await updateTitle(date);
         })();
 
         pendingDraws.set(cacheKey, drawPromise);
@@ -176,11 +172,14 @@ async function updateClock() {
         try {
             await drawPromise;
         } finally {
-            pendingDraws.delete(cacheKey);
+            pendingDraws.delete(cacheKey); // Always clean up
         }
 
     } catch (error) {
-        console.error("Error updating minutes clock:", error);
+        console.error("Error updating clock:", error);
+        await chrome.action.setTitle({
+            title: new Date().toLocaleTimeString()
+        });
     }
 }
 
@@ -188,27 +187,38 @@ async function updateClock() {
 // EVENT LISTENERS & PRECISE SCHEDULING
 // =================================================================
 
+/**
+ * Calculates the start of the next minute and schedules a precise alarm.
+ */
 function scheduleNextMinuteUpdate() {
     const now = new Date();
+    // Calculate the time for the start of the next minute
     const nextMinute = new Date(
             now.getFullYear(),
             now.getMonth(),
             now.getDate(),
             now.getHours(),
-            now.getMinutes() + 1,
-            0, // Reset seconds to 0
-            100 // Add a 100ms buffer
+            now.getMinutes() + 1, // Move to the next minute
+            0, // Reset seconds
+            0 // Reset milliseconds
         );
+
+    // Create a precise, non-repeating alarm
     chrome.alarms.create(ALARM_NAME, {
         when: nextMinute.getTime()
     });
+    console.log(`Next minute update scheduled for: ${nextMinute.toLocaleTimeString()}`);
 }
 
+/**
+ * Handles messages from other parts of the extension, like the offscreen document.
+ */
 chrome.runtime.onMessage.addListener(async(message) => {
     const cacheKey = message.cacheKey;
     if (!cacheKey || !pendingIconCallbacks[cacheKey]) {
         return;
     }
+
     if (message.type === 'icon-drawn' && message.imageData) {
         const reconstructedImageData = new ImageData(
                 new Uint8ClampedArray(message.imageData.data),
@@ -218,34 +228,60 @@ chrome.runtime.onMessage.addListener(async(message) => {
     } else if (message.type === 'icon-error') {
         pendingIconCallbacks[cacheKey].reject(new Error(message.error));
     }
+
+    // Clean up the callback regardless of outcome
     delete pendingIconCallbacks[cacheKey];
 });
 
+/**
+ * Listens for changes in synchronized storage and updates the clock immediately.
+ * This is triggered when the user changes the color in the options.
+ */
 chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'sync' && (changes.useCustomColor || changes.customColor)) {
-        iconCache.clear();
+    if (namespace === 'sync') {
+        // Clear the cache to ensure icons are redrawn with the new settings.
+        const visualChanges = ['useCustomColor', 'customColor'];
+        if (visualChanges.some(key => key in changes)) {
+            clearCache();
+        }
         updateClock();
     }
 });
 
+/**
+ * Handles the precise clock update alarm.
+ * When it fires, it updates the clock and schedules the next alarm.
+ */
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ALARM_NAME) {
         updateClock();
-        scheduleNextMinuteUpdate();
+        scheduleNextMinuteUpdate(); // Schedule the next update
     }
 });
 
+/**
+ * Sets up the extension on first install or when the browser starts.
+ */
 function initializeExtension() {
-    console.log("Minutes extension initializing...");
+    console.log("Extension initializing...");
+    
+    // Run an initial update to set the icon right away.
     updateClock();
+    // Schedule the first precise alarm.
     scheduleNextMinuteUpdate();
 }
 
+/**
+ * Fired when the extension is first installed.
+ */
 chrome.runtime.onInstalled.addListener(() => {
-    console.log("Minutes extension installed.");
+    console.log("Extension installed.");
     initializeExtension();
 });
 
+/**
+ * Fired when the browser is started.
+ */
 chrome.runtime.onStartup.addListener(() => {
     console.log("Browser started, initializing minutes extension.");
     initializeExtension();
