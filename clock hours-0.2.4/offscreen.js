@@ -1,85 +1,128 @@
-/**
- * Listens for messages from the background script.
- * When a 'draw-icon' message is received, it triggers the icon drawing process.
- * This listener is async because the work it triggers (drawIcon) is asynchronous.
- */
-chrome.runtime.onMessage.addListener(async(message) => {
-    // Ensure the message is intended for this offscreen document and is the correct type
-    if (message.target === 'offscreen' && message.type === 'draw-icon') {
-        await drawIcon(
-            message.data.text,
-            message.data.color,
-            message.data.use24HourFormat,
-            message.data.cacheKey // Pass through the cache key
-        );
+// =================================================================
+// Optimized Offscreen Document
+// =================================================================
+
+// Canvas pool to reuse canvas instances
+class CanvasPool {
+    constructor(maxSize = 3) {
+        this.pool = [];
+        this.maxSize = maxSize;
     }
-});
+
+    getCanvas() {
+        if (this.pool.length > 0) {
+            return this.pool.pop();
+        }
+        const canvas = new OffscreenCanvas(32, 32);
+        const context = canvas.getContext("2d", { willReadFrequently: true, alpha: true });
+        return { canvas, context };
+    }
+
+    returnCanvas(canvasData) {
+        if (this.pool.length < this.maxSize && canvasData) {
+            canvasData.context.clearRect(0, 0, canvasData.canvas.width, canvasData.canvas.height);
+            this.pool.push(canvasData);
+        }
+    }
+}
+const canvasPool = new CanvasPool();
+
+// Font measurement cache
+const fontMetricsCache = new Map();
+
+function getCachedFontMetrics(text, fontSize, context) {
+    const cacheKey = `${text}-${fontSize}`;
+    if (fontMetricsCache.has(cacheKey)) {
+        return fontMetricsCache.get(cacheKey);
+    }
+    context.font = `bold ${fontSize}px Arial`;
+    const metrics = context.measureText(text);
+    fontMetricsCache.set(cacheKey, metrics);
+    return metrics;
+}
+
+// Optimized font size calculation
+function calculateOptimalFontSize(text, canvas, context) {
+    const maxWidth = canvas.width + 2;
+    const maxHeight = canvas.height + 2;
+    let minSize = 1;
+    let maxSize = Math.floor(canvas.height * 1.2);
+    let bestSize = minSize;
+
+    while (minSize <= maxSize) {
+        const currentSize = Math.floor((minSize + maxSize) / 2);
+        const metrics = getCachedFontMetrics(text, currentSize, context);
+        if (metrics.width <= maxWidth && currentSize <= maxHeight) {
+            bestSize = currentSize;
+            minSize = currentSize + 1;
+        } else {
+            maxSize = currentSize - 1;
+        }
+    }
+    return bestSize;
+}
 
 /**
- * Asynchronously draws the clock icon on a canvas and sends the image data back to the service worker.
- * @param {string} text - The hour text to draw.
- * @param {string} color - The color of the text.
- * @param {boolean} use24HourFormat - Determines if a colon is added.
+ * Main drawing function.
+ * This is now an async function that sends a message back when it's done.
+ * It no longer returns a promise that resolves internally.
  */
-async function drawIcon(text, color, use24HourFormat, cacheKey) {
+async function drawIcon(data) {
+    const { text, color, cacheKey, use24HourFormat } = data;
+    const canvasData = canvasPool.getCanvas();
+    const { canvas, context } = canvasData;
+
     try {
-        // Create an in-memory canvas to draw on.
-        const canvas = new OffscreenCanvas(32, 32);
-        const context = canvas.getContext("2d", {
-            willReadFrequently: true
-        });
-
-        // Clear the canvas to ensure no artifacts from previous drawings.
-        context.clearRect(0, 0, canvas.width, canvas.height);
-
         const drawText = text + ":";
+        const bestFontSize = calculateOptimalFontSize(drawText, canvas, context);
 
-        // --- Dynamic Font Size Calculation ---
-        let bestFontSize = canvas.height;
-        context.textAlign = "right";
-        context.textBaseline = "middle";
-
-        for (let currentSize = Math.floor(canvas.height * 1.2); currentSize >= 1; currentSize--) {
-            context.font = `bold ${currentSize}px Arial`;
-            const metrics = context.measureText(drawText);
-            // Ensure the text fits within the canvas with a small margin.
-            if (metrics.width <= canvas.width + 2 && currentSize <= canvas.height + 2) {
-                bestFontSize = currentSize;
-                break;
-            }
-        }
-
-        // --- Draw the text ---
+        context.clearRect(0, 0, canvas.width, canvas.height);
         context.fillStyle = color;
         context.font = `bold ${bestFontSize}px Arial`;
+        context.textAlign = "right";
+        context.textBaseline = "middle";
         context.fillText(drawText, canvas.width, canvas.height / 2);
 
-        //Serialize ImageData for cross-context messaging.
         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-
-        // --- The Fix: Serialize the ImageData to a plain object before sending ---
-        // This prevents the object from being corrupted during messaging.
         const serializableImageData = {
             width: imageData.width,
             height: imageData.height,
-			data: Array.from(imageData.data) // Convert the Uint8ClampedArray to a standard array.
-        }; 
-        
-        // Send the prepared data in a new message back to the service worker.
+            data: Array.from(imageData.data)
+        };
+
+        // **FIX:** Send a message back to the background script with the result.
         await chrome.runtime.sendMessage({
             type: 'icon-drawn',
-			imageData: serializableImageData,
+            imageData: serializableImageData,
             cacheKey: cacheKey
         });
 
     } catch (error) {
-        // If any part of the drawing or sending fails, log the error.
         console.error("Error drawing icon in offscreen document:", error);
-        // Send error back to background script
+        // **FIX:** Send an error message back on failure.
         await chrome.runtime.sendMessage({
             type: 'icon-error',
             error: error.message,
             cacheKey: cacheKey
         });
+    } finally {
+        // Always return the canvas to the pool
+        canvasPool.returnCanvas(canvasData);
     }
 }
+
+/**
+ * Main message listener.
+ * This has been simplified to just call the drawing function.
+ */
+chrome.runtime.onMessage.addListener((message) => {
+    if (message.target === 'offscreen' && message.type === 'draw-icon') {
+        // The listener is no longer async, and it doesn't await a promise.
+        // It just triggers the drawIcon function, which will handle sending the response.
+        drawIcon(message.data);
+    }
+     // Added a listener for the health check to avoid timeouts.
+    if (message.type === 'health-check') {
+        chrome.runtime.sendMessage({ type: 'health-check-response', cacheKey: message.cacheKey });
+    }
+});
