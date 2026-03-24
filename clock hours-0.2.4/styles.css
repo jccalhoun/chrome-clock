@@ -1,0 +1,138 @@
+/* =================================================================
+   UNIFIED CLOCK STYLES (Options & Popup)
+   ================================================================= */
+
+body {
+  font-family: Arial, sans-serif;
+}
+
+/* Base Body Constraints */
+body.options-page { padding: 20px; max-width: 600px; margin: 0 auto; }
+body.popup-page { padding: 10px; width: 240px; max-height: 600px; overflow-y: auto; }
+
+h1 { color: #333; margin-bottom: 20px; }
+h2 { color: #555; margin-bottom: 15px; }
+
+a { color: #0066cc; text-decoration: none; display: block; margin-top: 10px; }
+a:hover { text-decoration: underline; }
+
+.section { border-bottom: 1px solid #eee; }
+.options-page .section { margin-bottom: 30px; padding-bottom: 20px; }
+.popup-page .section { margin-bottom: 15px; padding-bottom: 15px; }
+
+/* Toggle Switches (Hours Extension) */
+.toggle-container { display: flex; align-items: center; }
+.options-page .toggle-container { margin: 20px 0; }
+.popup-page .toggle-container { margin: 10px 0; }
+
+.toggle-label { font-weight: bold; }
+.options-page .toggle-label { margin-right: 15px; }
+.popup-page .toggle-label { margin-right: 10px; }
+
+.toggle-switch { position: relative; display: inline-block; }
+.options-page .toggle-switch { width: 60px; height: 34px; }
+.popup-page .toggle-switch { width: 50px; height: 24px; }
+
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+.toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
+.options-page .toggle-slider { border-radius: 34px; }
+.popup-page .toggle-slider { border-radius: 24px; }
+
+.toggle-slider:before { position: absolute; content: ""; background-color: white; transition: .4s; border-radius: 50%; }
+.options-page .toggle-slider:before { height: 26px; width: 26px; left: 4px; bottom: 4px; }
+.popup-page .toggle-slider:before { height: 16px; width: 16px; left: 4px; bottom: 4px; }
+
+input:checked + .toggle-slider { background-color: #4285f4; }
+input:checked + .toggle-slider:before { transform: translateX(26px); }
+
+.toggle-labels { display: flex; justify-content: space-between; }
+.options-page .toggle-labels { width: 60px; font-size: 12px; margin-top: 5px; }
+.popup-page .toggle-labels { width: 50px; font-size: 10px; margin-top: 4px; }
+
+/* Color Spectrum */
+.color-picker-container { margin: 20px 0; }
+.popup-page .color-picker-container { margin: 10px 0; }
+
+.color-spectrum-container { position: relative; border: 1px solid #ccc; cursor: crosshair; touch-action: none; }
+.options-page .color-spectrum-container { margin: 20px 0; height: 200px; }
+.popup-page .color-spectrum-container { margin: 10px 0; height: 150px; }
+
+#color-spectrum { width: 100%; height: 100%; background: linear-gradient(to right, rgb(255,0,0) 0%, rgb(255,255,0) 17%, rgb(0,255,0) 33%, rgb(0,255,255) 50%, rgb(0,0,255) 67%, rgb(255,0,255) 83%, rgb(255,0,0) 100%); }
+#color-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 100%); }
+#color-overlay-vertical { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%); }
+#color-selector { position: absolute; width: 10px; height: 10px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 2px rgba(0,0,0,0.8); transform: translate(-50%, -50%); pointer-events: none; }
+
+/* RGB Sliders */
+.color-sliders { margin: 20px 0; }
+.popup-page .color-sliders { margin: 15px 0; }
+
+.slider-row { display: flex; align-items: center; }
+.options-page .slider-row { margin-bottom: 10px; }
+.popup-page .slider-row { margin-bottom: 8px; }
+
+.slider-label { text-align: center; font-weight: bold; }
+.options-page .slider-label { width: 20px; margin-right: 10px; }
+.popup-page .slider-label { width: 15px; margin-right: 5px; }
+
+.slider-label.r { color: #e74c3c; }
+.slider-label.g { color: #2ecc71; }
+.slider-label.b { color: #3498db; }
+
+.color-slider { flex: 1; }
+.options-page .color-slider { margin: 0 10px 0 0; }
+.popup-page .color-slider { margin: 0 5px 0 0; }
+
+.slider-value { text-align: right; }
+.options-page .slider-value { width: 60px; padding: 5px; }
+.popup-page .slider-value { width: 35px; }
+
+/* Preview Box & Hex Input */
+.color-preview-container { display: flex; align-items: center; }
+.options-page .color-preview-container { margin: 20px 0; }
+.popup-page .color-preview-container { margin: 10px 0; }
+
+.color-preview { border: 1px solid #ccc; border-radius: 4px; }
+.options-page .color-preview { width: 50px; height: 50px; margin-right: 20px; }
+.popup-page .color-preview { width: 30px; height: 30px; margin-right: 10px; border-radius: 3px; }
+
+.options-page #custom-color { padding: 8px; width: 100px; font-size: 16px; }
+.popup-page #custom-color { flex: 1; padding: 4px; }
+
+/* Swatches */
+.recent-color-swatch { width: 24px; height: 24px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+
+/* Buttons */
+.button-container { display: flex; }
+.options-page .button-container { gap: 15px; margin-top: 20px; }
+.popup-page .button-container { gap: 8px; margin-top: 10px; }
+
+button { border: none; font-weight: bold; cursor: pointer; border-radius: 4px; }
+.options-page button { padding: 10px 15px; font-size: 14px; }
+.popup-page button { padding: 7px 10px; flex: 1; }
+
+#save-button { background-color: #4285f4; color: white; }
+#save-button:hover { background-color: #3367d6; }
+#reset-button { background-color: #f1f1f1; color: #333; border: 1px solid #ccc; }
+#reset-button:hover { background-color: #e4e4e4; }
+
+/* Status Text */
+.status { color: green; }
+.options-page .status { margin-top: 15px; font-size: 14px; height: 20px; }
+.popup-page .status { font-size: 0.9em; height: 20px; margin-top: 5px; text-align: center; }
+
+/* Container & Heading Spacing */
+.preset-themes-container { margin-bottom: 20px; }
+
+h3 { margin-top: 0; }
+.options-page h3 { margin-bottom: 10px; }
+.popup-page h3 { margin-bottom: 10px; }
+
+.options-page .recent-colors-container { margin-top: 20px; }
+.popup-page .recent-colors-container { margin-top: 10px; }
+.popup-page .recent-colors-container h3 { font-size: 12px; margin-bottom: 5px; }
+
+/* Flex Containers for Buttons and Swatches */
+#preset-buttons, #recent-colors { display: flex; flex-wrap: wrap; }
+.options-page #preset-buttons, .options-page #recent-colors { gap: 10px; }
+.popup-page #recent-colors { gap: 5px; }
