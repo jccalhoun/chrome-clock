@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "new clock hours",
-  "description": "shows the hours",  "version": "0.2.4",
+  "description": "shows the hours",  "version": "0.2.5",
   "background": {
     "service_worker": "background_script.js"
   },
@@ -19,8 +19,7 @@
   },
   "permissions": [
     "storage",
-    "alarms",
-    "offscreen"
+    "alarms"
   ],
   "externally_connectable": {
     "ids": [
