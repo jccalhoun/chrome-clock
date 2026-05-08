@@ -24,9 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
         resetButton: document.getElementById("reset-button"),
         status: document.getElementById("status"),
         presetContainer: document.getElementById('preset-buttons'),
-        recentContainer: document.getElementById('recent-colors'),
-        timeFormatToggle: document.getElementById("time-format-toggle"),
-        leadingZeroToggle: document.getElementById("leading-zero-toggle"),
+        recentContainer: document.getElementById('recent-colors')
     };
 
     // --- UI Update Functions ---
@@ -207,13 +205,6 @@ document.addEventListener("DOMContentLoaded", () => {
         updateColorUI(hex, true);
     }
 
-    async function handleDisplayChange(event, settingKey) {
-        await saveDisplayPreferences({
-            [settingKey]: event.target.checked
-        });
-        showStatusMessage("Display setting updated!");
-    }
-
     // --- Initialization ---
 
     function setupEventListeners() {
@@ -223,13 +214,16 @@ document.addEventListener("DOMContentLoaded", () => {
         if (elements.resetButton) {
             elements.resetButton.addEventListener("click", handleReset);
         }
-		if (elements.customColorInput) {
-        elements.customColorInput.addEventListener("change", () => updateColorUI(elements.customColorInput.value));
-		}
+        elements.customColorInput.addEventListener("change", () => {
+            const color = elements.customColorInput.value;
+            if (isValidHexColor(color)) {
+                updateColorUI(color);
+            } else {
+                showStatusMessage("Invalid hex color!");
+            }
+        });
         [elements.redSlider, elements.greenSlider, elements.blueSlider].forEach(slider => {
-            if (slider) {
-				slider.addEventListener("input", handleRGBChange);
-			}
+            slider.addEventListener("input", handleRGBChange);
         });
         elements.spectrumContainer.addEventListener("mousedown", e => {
             isDragging = true;
@@ -244,10 +238,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         window.addEventListener("touchmove", e => isDragging && handleSpectrumInteraction(e));
         window.addEventListener("touchend", () => isDragging = false);
-        if (elements.timeFormatToggle)
-            elements.timeFormatToggle.addEventListener("change", e => handleDisplayChange(e, 'use24HourFormat'));
-        if (elements.leadingZeroToggle)
-            elements.leadingZeroToggle.addEventListener("change", e => handleDisplayChange(e, 'showLeadingZero'));
     }
 
     async function init() {
@@ -255,10 +245,6 @@ document.addEventListener("DOMContentLoaded", () => {
         updateColorUI(settings.customColor);
         renderRecentColors(settings.recentColors);
         renderPresetButtons();
-        if (elements.timeFormatToggle)
-            elements.timeFormatToggle.checked = settings.use24HourFormat;
-        if (elements.leadingZeroToggle)
-            elements.leadingZeroToggle.checked = settings.showLeadingZero;
         setupEventListeners();
     }
 

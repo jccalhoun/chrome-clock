@@ -211,6 +211,12 @@ document.addEventListener("DOMContentLoaded", () => {
         await saveDisplayPreferences({
             [settingKey]: event.target.checked
         });
+
+        // Notify the background script that display settings have changed
+        browser.runtime.sendMessage({
+            displayChanged: true
+        });
+
         showStatusMessage("Display setting updated!");
     }
 
