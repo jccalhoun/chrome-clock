@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Clock Minutes",
     "description": "Shows the minutes with options shared with Clock Hours",
-    "version": "0.2.4",
+    "version": "0.2.5",
     "background": {
         "service_worker": "background_script.js"
     },
@@ -20,8 +20,7 @@
     },
     "permissions": [
         "storage",
-        "alarms",
-        "offscreen"
+        "alarms"
     ],
   "externally_connectable": {
     "ids": [
