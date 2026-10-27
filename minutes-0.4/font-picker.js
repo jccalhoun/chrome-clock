@@ -39,6 +39,8 @@
         let recommended = 0;   // recommended size for the current font
         let dragging = false;
 
+        // The installed-font check measures against the built-in font, so load it first
+        await ClockLayout.loadBuiltinFont();
         const installed = CANDIDATE_FONTS.filter(name => ClockLayout.isFontInstalled(name));
 
         // --- Build the list --------------------------------------------------
@@ -67,6 +69,18 @@
         }
 
         // --- Preview ---------------------------------------------------------
+        // True if `color` (any CSS color) is light, so it needs a dark background
+        function isLightColor(color) {
+            const ctx = previewHours.getContext("2d");
+            ctx.fillStyle = "#000";
+            ctx.fillStyle = color;               // the browser normalizes it to #rrggbb or rgba()
+            const value = String(ctx.fillStyle);
+            const rgb = value.startsWith("#")
+                ? hexToRgb(value)
+                : (([r, g, b]) => ({ r: +r, g: +g, b: +b }))(value.match(/[\d.]+/g) || [0, 0, 0]);
+            return (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000 > 128;
+        }
+
         // previewSize: a size to show while the slider is being dragged
         // (not yet saved); leave it out to use the saved size.
         async function drawPreview(previewSize) {
@@ -78,10 +92,14 @@
             ]);
             const c = (theme && theme.colors) || {};
             const toolbar = c.toolbar || c.frame;
-            // Without a theme, Chrome's own light or dark toolbar color
+            const color = ClockLayout.pickColor(settings, theme, dark);
+            // Without a theme (always, in Chrome) there's no way to know the toolbar
+            // color: a custom Chrome theme can be dark while Chrome is in light mode.
+            // So use Chrome's dark toolbar color behind light digits and its light
+            // one behind dark digits, so the preview never comes out blank.
             const background = toolbar
                 ? (Array.isArray(toolbar) ? `rgb(${toolbar.join(",")})` : toolbar)
-                : (dark ? "#3c3c3c" : "#ffffff");
+                : (isLightColor(color) ? "#3c3c3c" : "#ffffff");
             previewBox.style.backgroundColor = background;
 
             await ClockLayout.setFont(settings.clockFont);
@@ -96,7 +114,6 @@
                 showSize(previewSize === recommended ? 0 : previewSize, previewSize);
             }
 
-            const color = ClockLayout.pickColor(settings, theme, dark);
             [[previewHours, "12"], [previewMinutes, "34"]].forEach(([canvas, text]) => {
                 const ctx = canvas.getContext("2d");
                 ctx.clearRect(0, 0, canvas.width, canvas.height);

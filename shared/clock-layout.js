@@ -32,6 +32,7 @@ const ClockLayout = {
     _family: null,
     _weight: "normal",
     _builtinReady: null,
+    _builtinLoaded: false,
     _sizeCache: {},
     _inkCache: {},
 
@@ -47,7 +48,7 @@ const ClockLayout = {
         if (!this._builtinReady) {
             const face = new FontFace(this.BUILTIN_FAMILY, `url(${this.BUILTIN_URL})`);
             this._builtinReady = face.load()
-                .then(loaded => { this.fontSet().add(loaded); })
+                .then(loaded => { this.fontSet().add(loaded); this._builtinLoaded = true; })
                 .catch(error => { console.error("ClockLayout: could not load built-in font:", error); });
         }
         return this._builtinReady;
@@ -82,20 +83,31 @@ const ClockLayout = {
         return `${this._weight} ${size}px ${this._family || '"' + this.BUILTIN_FAMILY + '"'}`;
     },
 
-    // True if `name` is installed: text drawn in it differs in width from every
-    // generic fallback. (Neither Firefox nor Chrome lets extensions list
-    // installed fonts.)
+    // True if `name` is installed. (Neither Firefox nor Chrome lets extensions
+    // list installed fonts.) A font that isn't installed falls back to the next
+    // one in the list, so text drawn in `"name", <fallback>` measures the same
+    // as the fallback alone; an installed font measures differently from at
+    // least one fallback.
+    //
+    // The main fallback is the built-in font, once loaded. The generic families
+    // aren't reliable in Chrome's service worker, which doesn't get the browser's
+    // font settings: on Windows they can all resolve to Arial, so Arial would
+    // measure the same as every one of them and look "not installed".
     isFontInstalled: function(name) {
         const clean = this.cleanFontName(name);
         if (!clean) return false;
         const ctx = this.createCanvas(10, 10).getContext("2d");
-        const sample = "0123456789:mmmwwwlli";
-        return ["monospace", "serif", "sans-serif"].some(base => {
-            ctx.font = `72px ${base}`;
+        const differs = (fallback, sample) => {
+            ctx.font = `72px ${fallback}`;
             const baseWidth = ctx.measureText(sample).width;
-            ctx.font = `72px "${clean}", ${base}`;
+            ctx.font = `72px "${clean}", ${fallback}`;
             return ctx.measureText(sample).width !== baseWidth;
-        });
+        };
+        // The built-in font only has the digits and colon, so measure just those
+        if (this._builtinLoaded && differs(`"${this.BUILTIN_FAMILY}"`, "0123456789:")) {
+            return true;
+        }
+        return ["monospace", "serif", "sans-serif"].some(base => differs(base, "0123456789:mmmwwwlli"));
     },
 
     // --- Measuring ------------------------------------------------------------
