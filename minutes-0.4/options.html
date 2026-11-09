@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+	<title>Clock Minutes Options</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body class="options-page">
+    <h1>Clock Minutes Options</h1>
+    
+    <div class="section">
+      <h2>Clock Font</h2>
+      <div class="font-row">
+        <select id="font-select"></select>
+        <input type="text" id="font-custom" placeholder="Font name" hidden>
+      </div>
+      <div class="font-note" id="font-note"></div>
+      <div class="size-row">
+        <label for="font-size-slider">Size</label>
+        <input type="range" id="font-size-slider" min="8" max="64" step="1">
+        <span id="font-size-value"></span>
+        <button type="button" id="font-size-reset">Use recommended size</button>
+      </div>
+      <div class="font-preview" id="font-preview" title="Preview of both icons">
+        <canvas id="font-preview-hours" width="32" height="32"></canvas><canvas id="font-preview-minutes" width="32" height="32"></canvas>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Clock Color</h2>
+      
+      <div class="preset-themes-container">
+        <h3>Preset Themes</h3>
+        <div id="preset-buttons"></div>
+      </div>
+
+      <div class="color-picker-container">
+        <div class="color-spectrum-container">
+          <div id="color-spectrum"></div>
+          <div id="color-overlay"></div>
+          <div id="color-overlay-vertical"></div>
+          <div id="color-selector"></div>
+        </div>
+        
+        <div class="color-sliders">
+          <div class="slider-row">
+            <div class="slider-label r">R</div>
+            <input type="range" min="0" max="255" value="255" class="color-slider" id="red-slider">
+            <input type="number" min="0" max="255" value="255" class="slider-value" id="red-value">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label g">G</div>
+            <input type="range" min="0" max="255" value="255" class="color-slider" id="green-slider">
+            <input type="number" min="0" max="255" value="255" class="slider-value" id="green-value">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label b">B</div>
+            <input type="range" min="0" max="255" value="255" class="color-slider" id="blue-slider">
+            <input type="number" min="0" max="255" value="255" class="slider-value" id="blue-value">
+          </div>
+        </div>
+        
+        <div class="color-preview-container">
+          <div class="color-preview" id="color-preview"></div>
+          <input type="text" id="custom-color" placeholder="#RRGGBB">
+        </div>
+        
+        <div class="recent-colors-container">
+            <h3>Recently Used</h3>
+            <div id="recent-colors"></div>
+        </div>
+      </div>
+      
+      <div class="button-container">
+        <button type="button" id="save-button">Use Custom Color</button>
+        <button type="button" id="reset-button">Reset to Default</button>
+      </div>
+    </div>
+    
+    <div class="status" id="status"></div>
+    <script src="platform.js"></script>
+    <script src="shared-settings.js"></script>
+    <script src="color-utils.js"></script>
+    <script src="clock-layout.js"></script>
+    <script src="color-picker-state.js"></script>
+    <script src="color-picker-main.js"></script>
+    <script src="font-picker.js"></script>
+  </body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Clock Minutes",
+  "description": "Shows the minutes with options shared with Clock Hours",
+  "version": "0.4.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtAzclU7kskRw0e17WfwU1Ix9Vveg0aCDkTPhyjAplfQm3DBTAZNQDRyohq3BPYGX23fnj0TEJ6aBHGFs8jNuAY79bOgrKi/7j02SEEICwyFGzl8cPJcYlGvYmyXT3/lXmL7Hh7nGMawjyqrq3Q1MNiBaB3K8gdeyJAqY6g1ZHTljZWFnNfhN7txY0CnJZ/AUZdG+sVMnGWXMy+1wp48OSnJ3PORZDTLZcIzJT27UaLlBFIpDZgPgx44Bs95889yL5Oeye2nf69et2GZ4WlH4AB+R8sVt067Kgy9a4l7v3kNEjRAS/Q/3N7S4ySla2VaquVjIvTjU+jmJHFitKrOyAQIDAQAB",
+  "icons": {
+    "48": "icon48.png",
+    "96": "icon96.png"
+  },
+  "background": {
+    "service_worker": "background_script.js"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png"
+    },
+    "default_popup": "popup.html",
+    "default_title": "Clock Minutes"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "externally_connectable": {
+    "ids": [
+      "mfjklceejmahbgomlppgndjldghhkhfo"
+    ]
+  }
+}
